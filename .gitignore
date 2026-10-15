@@ -1,0 +1,11 @@
+.env
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+data/
+*.mp3
+*.wav
+__pycache__/
+.venv/
+.ipynb_checkpoints/
