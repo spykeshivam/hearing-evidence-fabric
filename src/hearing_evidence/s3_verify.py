@@ -5,34 +5,41 @@ import subprocess
 def verify_objects(bucket, profile, region, rows):
     """Check S3 for each row's s3_key and compare its size to the manifest's bytes.
 
-    Calls `aws s3api head-object` per row, so it reflects what's actually in the
-    bucket right now rather than trusting a sync command's own exit code. Returns
-    a dict mapping s3_key to "uploaded", "size_mismatch", or "missing".
+    Lists the bucket once via `aws s3api list-objects-v2`, which only needs
+    s3:ListBucket, rather than calling head-object per key, which needs
+    s3:GetObject and isn't granted to the uploader profile. Returns a dict
+    mapping s3_key to "uploaded", "size_mismatch", or "missing".
     """
+    result = subprocess.run(
+        [
+            "aws",
+            "s3api",
+            "list-objects-v2",
+            "--bucket",
+            bucket,
+            "--profile",
+            profile,
+            "--region",
+            region,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    sizes = {}
+    if result.returncode == 0:
+        for obj in json.loads(result.stdout).get("Contents") or []:
+            sizes[obj["Key"]] = obj["Size"]
+    else:
+        print(f"  warning: could not list bucket for verification: {result.stderr.strip()}")
+
     statuses = {}
     for row in rows:
         key = row["s3_key"]
-        result = subprocess.run(
-            [
-                "aws",
-                "s3api",
-                "head-object",
-                "--bucket",
-                bucket,
-                "--key",
-                key,
-                "--profile",
-                profile,
-                "--region",
-                region,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
+        if key not in sizes:
             statuses[key] = "missing"
-            continue
-        content_length = json.loads(result.stdout)["ContentLength"]
-        statuses[key] = "uploaded" if content_length == row["bytes"] else "size_mismatch"
+        elif sizes[key] != row["bytes"]:
+            statuses[key] = "size_mismatch"
+        else:
+            statuses[key] = "uploaded"
     return statuses
