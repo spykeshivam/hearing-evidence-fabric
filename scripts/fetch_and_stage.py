@@ -104,7 +104,7 @@ def save_json(key, url, source, kind, headers=None, cl=False):
                 print(f"  rate limited, waiting {wait}s")
                 time.sleep(wait)
                 continue
-            sys.exit(f"HTTP {e.code} for {url}")
+            raise RuntimeError(f"HTTP {e.code} for {url}") from e
     if cl:
         _last_cl_call = time.time()
     else:
@@ -160,60 +160,67 @@ def main():
         term, dn = h["term"], h["docket"]
         print(f"\n== {dn} (term {term})")
 
-        # Step 1: look up the docket on CourtListener by docket number.
-        # court=scotus restricts the lookup to the Supreme Court of the United States.
-        res = save_json(
-            f"courtlistener/dockets/scotus_{dn}.json",
-            f"{CL_API}/dockets/?court=scotus&docket_number={dn}",
-            "courtlistener",
-            "docket",
-            auth,
-            cl=True,
-        )
-        if not res.get("results"):
-            print("  no CourtListener docket found, skipping")
-            continue
-
-        # Step 2: resolve the audio reference from the docket's own audio_files field.
-        audio_ref = None
-        files = res["results"][0].get("audio_files") or []
-        if files:
-            first = files[0]
-            audio_ref = first if isinstance(first, str) else first.get("resource_uri")
-        if not audio_ref:
-            # TODO: fallback (e.g. h["audio_id"]) not implemented yet
-            print("  no audio linked to this docket, skipping")
-            continue
-
-        # Step 3: fetch the audio's metadata, then the MP3 itself if one is hosted.
-        a = save_json(
-            f"courtlistener/audio_meta/scotus_{dn}.json",
-            audio_ref,
-            "courtlistener",
-            "audio_meta",
-            auth,
-            cl=True,
-        )
-        if a.get("local_path_mp3"):
-            download(
-                f"courtlistener/audio/scotus_{dn}.mp3",
-                CL_STORAGE + a["local_path_mp3"],
+        try:
+            # Step 1: look up the docket on CourtListener by docket number.
+            # court=scotus restricts the lookup to the Supreme Court of the United States.
+            res = save_json(
+                f"courtlistener/dockets/scotus_{dn}.json",
+                f"{CL_API}/dockets/?court=scotus&docket_number={dn}",
                 "courtlistener",
-                "audio",
+                "docket",
+                auth,
+                cl=True,
             )
+            if not res.get("results"):
+                print("  no CourtListener docket found, skipping")
+                continue
 
-        # Step 4: fetch the matching Oyez case and every transcript tied to its
-        # oral arguments (used as the evaluation reference, per contracts/oyez_transcripts.yaml).
-        case = save_json(
-            f"oyez/cases/{term}_{dn}.json", f"{OYEZ_API}/cases/{term}/{dn}", "oyez", "case"
-        )
-        for entry in case.get("oral_argument_audio") or []:
-            save_json(
-                f"oyez/transcripts/{term}_{dn}_{entry['id']}.json",
-                entry["href"],
-                "oyez",
-                "transcript",
+            # Step 2: resolve the audio reference from the docket's own audio_files field.
+            audio_ref = None
+            files = res["results"][0].get("audio_files") or []
+            if files:
+                first = files[0]
+                audio_ref = first if isinstance(first, str) else first.get("resource_uri")
+            if not audio_ref:
+                # TODO: fallback (e.g. h["audio_id"]) not implemented yet
+                print("  no audio linked to this docket, skipping")
+                continue
+
+            # Step 3: fetch the audio's metadata, then the MP3 itself if one is hosted.
+            a = save_json(
+                f"courtlistener/audio_meta/scotus_{dn}.json",
+                audio_ref,
+                "courtlistener",
+                "audio_meta",
+                auth,
+                cl=True,
             )
+            if a.get("local_path_mp3"):
+                download(
+                    f"courtlistener/audio/scotus_{dn}.mp3",
+                    CL_STORAGE + a["local_path_mp3"],
+                    "courtlistener",
+                    "audio",
+                )
+
+            # Step 4: fetch the matching Oyez case and every transcript tied to its oral
+            # arguments (used as the evaluation reference, per contracts/oyez_transcripts.yaml).
+            case = save_json(
+                f"oyez/cases/{term}_{dn}.json", f"{OYEZ_API}/cases/{term}/{dn}", "oyez", "case"
+            )
+            for entry in case.get("oral_argument_audio") or []:
+                save_json(
+                    f"oyez/transcripts/{term}_{dn}_{entry['id']}.json",
+                    entry["href"],
+                    "oyez",
+                    "transcript",
+                )
+        except (RuntimeError, urllib.error.URLError, OSError) as e:
+            # One hearing's bad response (e.g. a non-429 HTTP error, or a dropped
+            # connection mid-download) shouldn't throw away work already staged
+            # for the other hearings in this batch.
+            print(f"  error fetching {dn}: {e}, skipping")
+            continue
 
     # Build a manifest of every file currently on disk (not just ones fetched this
     # run), so reruns that only add new hearings still produce a complete listing.
