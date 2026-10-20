@@ -10,8 +10,8 @@ Hearing Evidence is a Fabric lakehouse that turns public court-hearing audio int
 
 **Done means all of these are true:**
 
-- 10-12 hearings flow S3 to gold to Power BI from one pipeline trigger, with no manual steps.
-- ASR word error rate (WER) and diarization error are measured on at least 6 Supreme Court hearings against Oyez, split by model and by audio quality bucket.
+- The 4 Supreme Court hearings flow S3 to gold to Power BI from one pipeline trigger, with no manual steps. The appeals-court hearing joins later as an unscored addition.
+- ASR word error rate (WER) and diarization error are measured on the 4 Supreme Court hearings against Oyez, split by model and by audio quality bucket.
 - Citation extraction is compared: eyecite vs an LLM extractor, on 40 hand-labelled utterances (precision, recall, F1).
 - 3 planted bad audio files land in quarantine, and an empty batch fails the pipeline instead of passing quietly.
 - A restricted-matter row-level security demo works in the semantic model.
@@ -43,7 +43,7 @@ Four constraints shape every choice below; each row says what it changed.
 | Constraint | Your number | Design consequence |
 | --- | --- | --- |
 | Time | 3 days + 1 buffer | UI-first build, one workspace, default Spark pool (no custom Environment), thresholds calibrated from data rather than tuned |
-| Money | under £20 | Free Fabric trial capacity for the whole project, no paid capacity; free Colab GPU for ASR; no Azure OpenAI, Key Vault or Purview |
+| Money | under £20 | Paid F2 capacity (hearingevidencef2, UK West) on Azure free credit, paused when idle; free Colab GPU for ASR; no Azure OpenAI, Key Vault or Purview |
 | Learning | Fabric from zero | Each Fabric item is used once with a stated purpose; glossary at the end |
 | Focus | easily deviates | Every task is 90 minutes or less; the 45-minute stuck rule in section 17 |
 
@@ -95,7 +95,7 @@ Four sources feed the pipeline. Licence terms below are my understanding only; y
 
 Raw files stay in S3 and Fabric reads them in place through a shortcut: no copy, no second set of files to keep in sync. A OneLake **shortcut** is a pointer that makes an external folder look like a folder inside a lakehouse.
 
-**Bucket layout** (region eu-west-2 London, public access blocked):
+**Bucket layout** (region eu-north-1, public access blocked):
 
 ```
 s3://he-raw-<suffix>/
@@ -214,7 +214,7 @@ Each row passes or fails the purpose test: does it do a job in the data flow tha
 | --- | --- | --- |
 | OneLake shortcut (S3) | Keep | Reads raw audio and JSON from S3 in place; the cross-cloud story |
 | Lakehouse (x3) | Keep | Delta storage per medallion layer, plus the free SQL endpoint |
-| Notebooks (Spark) | Keep | All ingestion, audio QC, NLP, silver and gold transforms. Audio QC is a plain Python loop on the driver; 12 files do not need distribution |
+| Notebooks (Spark) | Keep | All ingestion, audio QC, NLP, silver and gold transforms. Audio QC is a plain Python loop on the driver; 4 files do not need distribution |
 | Data Factory pipeline | Keep | Orchestrates notebooks in order and enforces gates: Lookup on `dq_results`, If condition, Fail activity. This is where "success with zero rows" gets caught |
 | SQL analytics endpoint | Keep | Read-only T-SQL over Delta: data-quality queries, the evidence-search demo, the smoke test |
 | Power BI semantic model (Direct Lake) | Keep | Measures, relationships and row-level security over gold |
@@ -230,7 +230,7 @@ Each row passes or fails the purpose test: does it do a job in the data flow tha
 | Copilot and AI functions | Skip **\[PAID\]** | Burns capacity and hides model choice. The LLM call is explicit in a notebook so you can evaluate it |
 | Environment (custom libs) | Skip | Slow to publish. Install your package with `%pip` in the notebook instead |
 
-**Capacity note:** the free trial capacity (about 60 days) **\[VERIFY\]** powers the whole project, and no paid capacity is used. Terraform attaches the workspace to it by name. Cost is in section 18.
+**Capacity note:** the paid F2 capacity (hearingevidencef2, UK West) runs on Azure free credit and powers the whole project. Terraform attaches the workspace to it by name at creation. Pause it after every session. Cost is in section 18.
 
 ## 9. Audio processing: quality gate, transcription, evaluation
 
@@ -263,7 +263,7 @@ Metrics are computed per file on the driver. Thresholds below are starting point
 
 ### 9.3 Evaluation (notebook `nb_05_eval`, output `fact_asr_eval`)
 
-- **Reference:** Oyez turns for 6+ Supreme Court hearings. Non-Supreme-Court hearings are "unscored" and appear only in quality and speaking-time plots.
+- **Reference:** Oyez turns for the 4 Supreme Court hearings. The appeals-court hearing, if added, is unscored and appears only in quality and speaking-time plots.
 - **WER:** `jiwer` after one fixed normalisation (lowercase, strip punctuation, expand numbers). Report substitutions, deletions and insertions separately.
 - **Speaker error:** map each diarization cluster to the Oyez speaker with the most overlap, then compute approximate DER with `pyannote.metrics` and a 0.5 s collar. Also record speaker-count error. Oyez timestamps are coarse turn boundaries, so label this "approximate DER".
 - **Slices:** WER by model, by audio quality bucket, and by speaker role (justice vs advocate). Also a legal-term error rate: how often party and case names are misrecognised. That number motivates the entity-resolution step.
@@ -493,7 +493,7 @@ One promotion from `dev` to `test` workspace on the same capacity. Use it to sho
 
 ### 15.4 Terraform (Day 3, half-day box)
 
-**Scope:** workspace, role assignment and the 3 lakehouses, attached to your existing trial capacity by name. Optional stretch: connect the workspace to Git so items hydrate from the repo.
+**Scope:** workspace, role assignment and the 3 lakehouses, attached to the F2 capacity (hearingevidencef2) by name at creation. Optional stretch: connect the workspace to Git so items hydrate from the repo.
 
 - Providers: the Microsoft `fabric` provider only; no `azurerm`, because no Azure resource is created. A `capacity_name` variable selects the capacity, so anyone can point the code at their own trial or paid capacity. **\[VERIFY\]** provider version, resource names, and that a capacity can be looked up by name.
 - Authentication: `az login` as yourself may be enough, so no service principal is needed. If the provider insists on one, enable the tenant setting that lets service principals call Fabric APIs **\[VERIFY\]**.
@@ -508,7 +508,7 @@ One promotion from `dev` to `test` workspace on the same capacity. Use it to sho
 4. Trigger the pipeline
 5. Run `scripts/smoke_test.sql` on the gold SQL endpoint: row counts per table must equal the pre-destroy counts, and `dq_results` must show no failures
 
-Pass means counts match exactly. ASR output is frozen in S3, so the rebuild is deterministic. The trial capacity expires about 60 days after you start it, so put a screenshot or short video of the successful rebuild in the README.
+Pass means counts match exactly. ASR output is frozen in S3, so the rebuild is deterministic. Resume the paused F2 capacity before this test and pause it again after, and put a screenshot or short video of the successful rebuild in the README.
 
 **Time box:** 4 hours. If the Fabric provider lacks a resource you need, script it with REST and move on; log the gap in `docs/decisions.md`. A documented gap is better than an overrun.
 
@@ -550,19 +550,19 @@ Day 2 is the heavy one, so its semantic model and report sit in the buffer day b
 
 ### Day 0: Tue 13 Oct evening (about 2.5 h)
 
-- [ ] Azure: subscription in your new tenant with the Owner role (done); budget alerts are optional because nothing paid is planned (15 min)
-- [ ] Tenant admin: start the Fabric trial; find the settings that allow Fabric items and service-principal API access **\[VERIFY\]** (20 min)
-- [ ] AWS: bucket in eu-west-2, block public access, read-only IAM user for the shortcut, separate upload profile (30 min)
-- [ ] GitHub: public repo with the section 16 skeleton, `ruff` and `nbstripout` pre-commit (20 min)
+- [ ] Azure: subscription in your new tenant with the Owner role (done); budget alerts are optional since the F2 capacity runs on Azure free credit (15 min)
+- [ ] Tenant admin: create and assign the F2 capacity (hearingevidencef2, UK West); find the settings that allow Fabric items and service-principal API access **\[VERIFY\]** (20 min)
+- [ ] AWS: bucket in eu-north-1, block public access, read-only IAM user (`fabric-shortcut-reader`), separate upload profile (`he-uploader`) (30 min)
+- [ ] GitHub: `nbstripout` pre-commit added to the existing public repo (uv, ruff, pytest and CI already in place) (10 min)
 - [ ] Tokens: CourtListener API token; Hugging Face token and accept the pyannote terms (10 min)
 - [ ] Licences: read CourtListener and Oyez terms and write them into `contracts/*.yaml` (30 min)
-- [ ] `fetch_and_stage.py`: 12 hearings (6 Supreme Court with Oyez transcripts, 6 others), sha256 manifest, upload to S3 (45 min)
+- [ ] `fetch_and_stage.py`: the 4 Supreme Court hearings with Oyez transcripts (plus the appeals-court hearing later as an unscored addition), sha256 manifest, upload to S3 (45 min)
 
-**Gate:** `aws s3 ls --recursive` shows at least 12 audio files plus docket, Oyez and manifest files, and every audio hash is in the manifest.
+**Gate:** `aws s3 ls --recursive` shows the 4 audio files plus docket, Oyez and manifest files, and every audio hash is in the manifest.
 
 ### Day 1: Wed 14 Oct, ingest, quality gate, transcription
 
-- [ ] Workspace on trial capacity; 3 lakehouses; connect Git to the `fabric/` folder (45 min)
+- [ ] Workspace assigned to the F2 capacity (hearingevidencef2) at creation; 3 lakehouses; connect Git to the `fabric/` folder (45 min)
 - [ ] S3 shortcut `raw` with caching on; list it from a notebook (30 min)
 - [ ] `nb_01_bronze_ingest`: manifest, JSON to Delta, lineage columns, hash check, contract schema check (90 min)
 - [ ] `nb_02_audio_quality`: metrics, thresholds calibrated on the first 5 files, 3 planted bad files, quarantine (90 min)
@@ -571,7 +571,7 @@ Day 2 is the heavy one, so its semantic model and report sit in the buffer day b
 - [ ] Evening: label 40 citation utterances and 40 name mentions, in 10-minute blocks (40 min total)
 - [ ] Three lines per Fabric item in `docs/decisions.md`; commit (20 min)
 
-**Gate:** bronze counts reconcile to the manifest; quarantine holds exactly the 3 planted files plus any real failures; ASR JSON exists for at least 10 hearings from 2 runs; everything is committed.
+**Gate:** bronze counts reconcile to the manifest; quarantine holds exactly the 3 planted files plus any real failures; ASR JSON exists for the 4 hearings from 2 runs; everything is committed.
 
 ### Day 2: Thu 15 Oct, silver, evaluation, NLP, gold, gates (about 7 h, plus optional plots)
 
@@ -586,7 +586,7 @@ Day 2 is the heavy one, so its semantic model and report sit in the buffer day b
 
 ### Day 3: Fri 16 Oct, Terraform (4 h box) then README (2 h)
 
-- [ ] `terraform init`; fabric provider; workspace attached to your trial capacity by name, role assignment (60 min)
+- [ ] `terraform init`; fabric provider; workspace attached to the F2 capacity (hearingevidencef2) by name, role assignment (60 min)
 - [ ] 3 lakehouses in Terraform (30 min)
 - [ ] `create_shortcut.py` and `smoke_test.sql` (45 min)
 - [ ] Rebuild test: destroy, apply, Git sync, shortcut, pipeline, smoke test (60 min)
@@ -610,9 +610,8 @@ Expected spend is about £0 to £2 (S3 and LLM calls) against your £20 ceiling.
 
 | Item | Estimate | Notes |
 | --- | --- | --- |
-| Azure subscription | £0 | Free-trial subscription, mostly unused now. Add budget alerts only if you later add paid resources |
-| Fabric trial capacity | £0 | Covers the whole project; expires about 60 days after you start it, so record the demo first **\[VERIFY\]** trial length and that your new tenant can start it |
-| Fabric **paid capacity (not used)** | £0 | Not used. Everything runs on the free trial capacity, so there is no hourly billing and nothing to pause |
+| Azure subscription | £0 (credit) | Azure free credit funds the paid F2 capacity; add budget alerts for extra safety |
+| Fabric F2 capacity (hearingevidencef2, UK West) | £0 (credit) | Paid capacity on Azure free credit, billed hourly while running. Pause it after every session |
 | S3 storage and requests | under £1 | About 1 GB of audio |
 | S3 egress through the shortcut | under £1 | About £0.07 per GB; shortcut caching reduces repeats |
 | OneLake storage | under £1 | Same order as S3 |
@@ -625,7 +624,7 @@ Expected spend is about £0 to £2 (S3 and LLM calls) against your £20 ceiling.
 | Risk | Likelihood | Fallback |
 | --- | --- | --- |
 | Oyez terms forbid reuse, or no stable access | Medium | Use CourtListener transcripts as a weak reference only; relabel the evaluation as "agreement"; shrink scored set to what is allowed |
-| CourtListener rate limits or audio missing for a hearing | Medium | Reduce to 8 hearings; the design does not depend on the count |
+| CourtListener rate limits or audio missing for a hearing | Medium | Proceed with the hearings that are available; the design does not depend on the exact count |
 | pyannote gating or token trouble | Medium | Drop DER and report WER and speaker-count error only; note it in limitations |
 | S3 shortcut auth or URL error | Medium | Check bucket region, IAM actions and URL form first. Last resort: upload to OneLake Files and record the loss of the cross-cloud step |
 | Fabric provider lacks a resource | High | Terraform for capacity and workspace, REST script for the rest, log the gap |
@@ -691,7 +690,7 @@ Terms in the order you will meet them.
 | Term | Plain meaning | Where you use it |
 | --- | --- | --- |
 | Tenant | Your organisation's Microsoft account space; admin settings live here | Day 0: enable trial and API access |
-| Capacity (trial, F SKU) | The pool of compute that Fabric items run on, paid ones are billed by time; the trial is free and temporary | Free trial capacity all project long; Terraform attaches the workspace to it |
+| Capacity (F2 SKU, paid) | The pool of compute that Fabric items run on, billed by time while running | The F2 capacity (hearingevidencef2, UK West) on Azure free credit; Terraform attaches the workspace to it at creation; pause it after every session |
 | Workspace | A folder-like container for Fabric items, assigned to one capacity | `ws-hearing-evidence-dev` |
 | OneLake | Fabric's single storage layer, like one OneDrive for all data | Underneath everything |
 | Lakehouse | OneLake folder with Files, Delta Tables and an auto SQL endpoint | `lh_bronze`, `lh_silver`, `lh_gold` |
