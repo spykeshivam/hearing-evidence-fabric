@@ -1,0 +1,21 @@
+source_id: courtlistener_audio
+owner: shiv
+description: Oral-argument audio plus docket and panel metadata (Free Law Project)
+source_url: https://www.courtlistener.com/api/rest/v4/audio/
+access: free API token; default limits 5/min, 50/hour, 125/day
+licence:
+  id: public-domain-court-records
+  checked_on: 2026-10-19
+  terms_url: https://www.courtlistener.com/terms/
+  attribution: Credit Free Law Project / CourtListener
+  notes: >
+    No explicit data licence in the terms (modified 2026-08-05). Court
+    recordings and docket metadata treated as public records. Rules observed:
+    one account, no credential sharing, requests paced under 5/min,
+    no use for FCRA-type decisions, AI-derived outputs labelled as ours,
+    not CourtListener's.classification: public record; no private or sealed audio
+refresh: manual, per batch
+required_provenance_fields: [source_url, retrieved_at, sha256, licence_id]
+quality_expectations:
+  min_rows_per_batch: 1
+  min_sample_rate_hz: 16000

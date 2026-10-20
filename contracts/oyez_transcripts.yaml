@@ -1,0 +1,13 @@
+source_id: oyez_transcripts
+owner: shiv
+description: Speaker-labelled, timestamped Supreme Court transcripts and case data (evaluation reference)
+source_url: https://api.oyez.org/   # undocumented API; save raw JSON immediately
+licence:
+  id: CC-BY-NC-4.0
+  terms_url: https://creativecommons.org/licenses/by-nc/4.0/
+  checked_on: 2026-10-16
+  attribution: Transcripts and speaker labels from Oyez (oyez.org), CC BY-NC 4.0, normalised and used as the evaluation reference.
+  restrictions: [non-commercial only, do not use the Oyez name or logo as endorsement]
+classification: public record
+refresh: manual, per batch
+required_provenance_fields: [source_url, retrieved_at, sha256, licence_id]
