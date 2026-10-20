@@ -21,6 +21,27 @@ Template:
 
 ---
 
+## 2026-10-20: Pre-push git hook mirroring CI
+
+**Decision:** Added `.githooks/pre-push` (ruff check, ruff format --check, pytest)
+and pointed git at it with `git config core.hooksPath .githooks`. It's checked into
+the repo so it's visible and reusable, but `core.hooksPath` itself is a local git
+config, not something a clone picks up automatically — anyone (including a fresh
+clone of this machine) has to run that `git config` line once.
+
+**Why:** A PR was pushed and only failed CI after the fact (ruff lint errors that
+had been sitting in the first commit). Pushing doesn't run anything by itself;
+this hook catches the same checks CI runs, locally, before the push leaves the
+machine.
+
+**Alternatives considered:** A local-only `.git/hooks/pre-push` (not versioned,
+invisible to anyone else, lost on re-clone) and a hook-management tool like
+pre-commit or husky (unjustified weight for a solo repo with three checks).
+
+**Result:** (fill in later)
+
+---
+
 ## 2026-10-20: Branch + PR workflow, with CI gating merges to main
 
 **Decision:** Stop committing straight to `main`. All work happens on a branch, goes
