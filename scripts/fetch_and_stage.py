@@ -6,8 +6,10 @@ For each docket in HEARINGS, this script:
   3. Fetches the matching Oyez case JSON and any transcripts tied to its oral arguments.
   4. Hashes and records provenance (source URL, retrieval time, sha256, licence) for every
      file written to data/stage/, per the contracts in contracts/*.yaml.
-  5. Writes a per-batch manifest (objects.csv) and syncs the stage directory to S3, unless
-     --no-upload is passed.
+  5. Syncs the stage directory to S3 (unless --no-upload), then writes a per-batch
+     manifest (objects.csv) recording each file's real upload_status ("uploaded",
+     "size_mismatch", or "missing"), checked against S3 itself rather than trusted
+     from the sync command's exit code.
 
 Repeated runs are cheap: anything already present under data/stage/ is skipped (see
 save_json/download caching), so only new files are fetched and appended to the manifest.
@@ -26,6 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from hearing_evidence.hashing import sha256_of
+from hearing_evidence.s3_verify import verify_objects
 
 # "Staging area" is a data-engineering term: a holding folder where files wait,
 # already checked and fingerprinted, before they're loaded for real (here, before
@@ -246,16 +249,19 @@ def main():
             )
     if not rows:
         sys.exit("Nothing was fetched.")
-    with open(mdir / "objects.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
-        w.writeheader()
-        w.writerows(rows)
-    print(f"\nManifest written: {len(rows)} objects")
+
     if args.no_upload:
+        for row in rows:
+            row["upload_status"] = "not_attempted"
+        write_manifest(mdir, rows)
+        print(f"\nManifest written: {len(rows)} objects (--no-upload, nothing sent to S3)")
         return
 
     # Mirror the stage directory to S3; _provenance.json is local bookkeeping only.
-    subprocess.run(
+    # check=False: a partial sync (e.g. one file timing out) must still leave a
+    # manifest that's honest about what made it, rather than crashing before that
+    # manifest is ever written.
+    sync_result = subprocess.run(
         [
             "aws",
             "s3",
@@ -267,8 +273,43 @@ def main():
             "--exclude",
             "_provenance.json",
         ],
-        check=True,
+        check=False,
     )
+
+    # Ask S3 itself what's actually there, rather than trusting sync's exit code,
+    # so the manifest records ground truth even if sync reported success.
+    statuses = verify_objects(bucket, "he-uploader", "eu-north-1", rows)
+    for row in rows:
+        row["upload_status"] = statuses.get(row["s3_key"], "missing")
+    write_manifest(mdir, rows)
+
+    # Push just the manifest (small, fast) so the copy in S3 reflects this run's
+    # real outcome, even when the bulk sync above only partly succeeded.
+    subprocess.run(
+        [
+            "aws",
+            "s3",
+            "cp",
+            str(mdir / "objects.csv"),
+            f"s3://{bucket}/_manifests/batch={batch}/objects.csv",
+            "--profile",
+            "he-uploader",
+        ],
+        check=False,
+    )
+
+    failed = [row["s3_key"] for row in rows if row["upload_status"] != "uploaded"]
+    print(f"\nManifest written: {len(rows) - len(failed)}/{len(rows)} objects uploaded")
+    if failed or sync_result.returncode != 0:
+        sys.exit(f"Upload incomplete, not confirmed in S3: {failed}")
+
+
+def write_manifest(mdir, rows):
+    """Write rows to <mdir>/objects.csv, overwriting any manifest already there."""
+    with open(mdir / "objects.csv", "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
 
 
 if __name__ == "__main__":
