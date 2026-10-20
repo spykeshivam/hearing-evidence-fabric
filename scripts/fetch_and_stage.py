@@ -13,10 +13,18 @@ Repeated runs are cheap: anything already present under data/stage/ is skipped (
 save_json/download caching), so only new files are fetched and appended to the manifest.
 """
 
-import argparse, csv, hashlib, json, os, subprocess, sys, time
-import urllib.error, urllib.request
-from datetime import datetime, timezone
+import argparse
+import csv
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
+
 from hearing_evidence.hashing import sha256_of
 
 # "Staging area" is a data-engineering term: a holding folder where files wait,
@@ -50,11 +58,14 @@ _last_cl_call = 0.0
 
 def now():
     """Return the current UTC time as an ISO-8601 string, truncated to whole seconds."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def request(url, headers=None):
-    """Open url with our User-Agent plus any extra headers, returning the response context manager."""
+    """Open url with our User-Agent plus any extra headers.
+
+    Returns the response context manager.
+    """
     req = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})})
     return urllib.request.urlopen(req, timeout=120)
 
@@ -206,7 +217,7 @@ def main():
 
     # Build a manifest of every file currently on disk (not just ones fetched this
     # run), so reruns that only add new hearings still produce a complete listing.
-    batch = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    batch = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     mdir = STAGE / "_manifests" / f"batch={batch}"
     mdir.mkdir(parents=True, exist_ok=True)
     rows = []
