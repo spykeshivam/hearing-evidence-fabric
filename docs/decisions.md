@@ -21,6 +21,34 @@ Template:
 
 ---
 
+## 2026-10-20: Verify S3 uploads against the bucket, not the sync exit code
+
+**Decision:** `fetch_and_stage.py` writes its manifest *after* the S3 sync, not
+before. It checks every file against S3 itself via `aws s3api head-object`
+(`src/hearing_evidence/s3_verify.py`), records a per-file `upload_status`
+(`uploaded`, `size_mismatch`, or `missing`) in `objects.csv`, and only then pushes
+that manifest up. The script exits non-zero if anything isn't confirmed uploaded.
+
+**Why:** A real run hit `AWS_IO_SOCKET_TIMEOUT` on two of four MP3s. The sync
+still exited non-zero, but because the manifest had already been written and
+synced *before* that failure, the batch sitting in S3 looked identical to a
+successful one — there was no way to tell from the bucket alone which files were
+actually there. Moving towards Fabric, bronze needs to be able to tell a corrupt
+or missing object from a legitimate one without re-deriving it from local state.
+
+**Alternatives considered:** Trust `aws s3 sync`'s own exit code and skip
+per-file verification; rejected because sync's exit code is run-level, not
+per-object, so it can't say *which* files failed. Comparing content hashes
+(sha256) against S3's ETag instead of size; rejected for now since ETag isn't a
+plain MD5 once a file is multipart-uploaded (true for our larger MP3s), so a
+clean hash comparison needs more than a one-line check — size mismatch is a
+reasonable confirmation that a complete file arrived in the bucket.
+
+**Result:** _pending — rerun the upload and confirm the two previously-failed
+MP3s now show `uploaded`._
+
+---
+
 ## 2026-10-20: Pre-push git hook mirroring CI
 
 **Decision:** Added `.githooks/pre-push` (ruff check, ruff format --check, pytest)
