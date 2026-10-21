@@ -552,7 +552,7 @@ Day 2 is the heavy one, so its semantic model and report sit in the buffer day b
 
 - [ ] Azure: subscription in your new tenant with the Owner role (done); budget alerts are optional since the F2 capacity runs on Azure free credit (15 min)
 - [ ] Tenant admin: create and assign the F2 capacity (hearingevidencef2, UK West); find the settings that allow Fabric items and service-principal API access **\[VERIFY\]** (20 min)
-- [ ] AWS: bucket in eu-north-1, block public access, read-only IAM user (`fabric-shortcut-reader`), separate upload profile (`he-uploader`) (30 min)
+- [ ] AWS: bucket in eu-north-1, block public access, read-only IAM user (`he-raw-fabric-user`, policy `he-raw-fabric-read`), separate upload profile (`he-uploader`) (30 min)
 - [ ] GitHub: `nbstripout` pre-commit added to the existing public repo (uv, ruff, pytest and CI already in place) (10 min)
 - [ ] Tokens: CourtListener API token; Hugging Face token and accept the pyannote terms (10 min)
 - [ ] Licences: read CourtListener and Oyez terms and write them into `contracts/*.yaml` (30 min)

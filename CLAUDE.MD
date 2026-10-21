@@ -30,7 +30,7 @@ Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Fa
 ## Money and cloud (strict)
 - Own-money budget under 20 GBP. A paid F2 capacity (hearingevidencef2, UK West) runs on Azure free credit. Assign the workspace to it AT CREATION.
 - The capacity bills hourly while running. Never leave it running: ask me to pause it after every session. Never click "Upgrade" on the subscription. No overage protection.
-- AWS free plan: eu-north-1 only. IAM users: fabric-shortcut-reader (read-only), he-uploader (CLI profile he-uploader).
+- AWS free plan: eu-north-1 only. IAM users: he-raw-fabric-user (read-only, policy he-raw-fabric-read), he-uploader (CLI profile he-uploader).
 - Never print, log or commit secrets. Tokens come from env vars (CL_TOKEN, HE_BUCKET). Do not run anything that creates cloud resources or costs money without asking.
 
 ## Conventions
