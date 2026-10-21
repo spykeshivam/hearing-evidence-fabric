@@ -19,3 +19,78 @@ required_provenance_fields: [source_url, retrieved_at, sha256, licence_id]
 quality_expectations:
   min_rows_per_batch: 1
   min_sample_rate_hz: 16000
+# schema: drawn from data/stage/courtlistener/{dockets,audio_meta}/*.json for all four
+# staged hearings (23-970, 23-980, 21-1333, 21-1496). Fields that were null or empty
+# in every hearing (CourtListener's generic civil/bankruptcy/appellate docket fields,
+# not applicable to a SCOTUS cert-stage oral argument) are left out of `properties`
+# and allowed through by `additionalProperties: true` rather than modelled here.
+schema:
+  # docket: unwrap data["results"][0] first -- CourtListener's docket search endpoint
+  # wraps the single match in a pagination envelope.
+  docket:
+    type: object
+    additionalProperties: true
+    required:
+      [id, resource_uri, absolute_url, court, court_id, case_name, case_name_short,
+       docket_number, docket_number_core, docket_number_raw, docket_number_source,
+       slug, date_argued, date_filed, date_created, date_modified, audio_files,
+       clusters, panel, tags, source, blocked, appeal_from, appeal_from_str,
+       original_court_info]
+    properties:
+      id: {type: integer}
+      resource_uri: {type: string}
+      absolute_url: {type: string}
+      court: {type: string}
+      court_id: {type: string}
+      case_name: {type: string}
+      case_name_short: {type: string}
+      docket_number: {type: string}
+      docket_number_core: {type: string}
+      docket_number_raw: {type: string}
+      docket_number_source: {type: integer}
+      slug: {type: string}
+      date_argued: {type: string}
+      date_filed: {type: string}
+      date_created: {type: string}
+      date_modified: {type: string}
+      audio_files: {type: array}
+      clusters: {type: array}
+      panel: {type: array}
+      tags: {type: array}
+      source: {type: integer}
+      blocked: {type: boolean}
+      appeal_from: {type: string}
+      appeal_from_str: {type: string}
+      original_court_info: {type: object}
+  audio_meta:
+    type: object
+    additionalProperties: true
+    required:
+      [id, resource_uri, absolute_url, docket, case_name, case_name_short,
+       download_url, local_path_mp3, local_path_original_file, sha1, source,
+       duration, processing_complete, blocked, panel, date_created, date_modified,
+       filepath_ia, stt_status, stt_source, stt_transcript, ia_upload_failure_count]
+    properties:
+      id: {type: integer}
+      resource_uri: {type: string}
+      absolute_url: {type: string}
+      docket: {type: string}
+      case_name: {type: string}
+      case_name_short: {type: string}
+      download_url: {type: string}
+      local_path_mp3: {type: string}
+      local_path_original_file: {type: string}
+      sha1: {type: string}
+      source: {type: string}
+      duration: {type: integer}
+      processing_complete: {type: boolean}
+      blocked: {type: boolean}
+      panel: {type: array}
+      date_created: {type: string}
+      date_modified: {type: string}
+      # null until Colab ASR has run for the hearing
+      filepath_ia: {type: string}
+      stt_status: {type: integer}
+      stt_source: {type: [integer, "null"]}
+      stt_transcript: {type: string}
+      ia_upload_failure_count: {type: [integer, "null"]}

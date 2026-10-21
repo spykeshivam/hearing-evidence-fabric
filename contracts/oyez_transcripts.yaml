@@ -11,3 +11,118 @@ licence:
 classification: public record
 refresh: manual, per batch
 required_provenance_fields: [source_url, retrieved_at, sha256, licence_id]
+# schema: drawn from data/stage/oyez/{cases,transcripts}/*.json for all four staged
+# hearings. Fields null in every hearing (additional_docket_numbers, argument2_url,
+# location, related_cases on case; display_title, public_note, transcript.duration
+# on transcript) are left out of `properties` and allowed through by
+# `additionalProperties: true` rather than modelled here.
+schema:
+  case:
+    type: object
+    additionalProperties: true
+    required:
+      [ID, docket_number, name, first_party, first_party_label, second_party,
+       second_party_label, term, href, justia_url, manner_of_jurisdiction,
+       question, facts_of_the_case, description, conclusion, citation,
+       lower_court, advocates, heard_by, oral_argument_audio, timeline,
+       written_opinion, view_count, decided_by, decisions, opinion_announcement]
+    properties:
+      ID: {type: integer}
+      docket_number: {type: string}
+      name: {type: string}
+      first_party: {type: string}
+      first_party_label: {type: string}
+      second_party: {type: string}
+      second_party_label: {type: string}
+      term: {type: string}
+      href: {type: string}
+      justia_url: {type: string}
+      manner_of_jurisdiction: {type: string}
+      question: {type: string}
+      facts_of_the_case: {type: string}
+      description: {type: string}
+      conclusion: {type: string}
+      citation: {type: object}
+      lower_court: {type: object}
+      advocates: {type: array}
+      heard_by: {type: array}
+      oral_argument_audio: {type: array}
+      timeline: {type: array}
+      written_opinion: {type: array}
+      view_count: {type: integer}
+      # null for 23-970 and 23-980 (cert dismissed as improvidently granted, no majority)
+      decided_by: {type: [object, "null"]}
+      decisions: {type: [array, "null"]}
+      opinion_announcement: {type: [array, "null"]}
+  transcript:
+    type: object
+    additionalProperties: true
+    required: [id, title, unavailable, damaged, media_file, transcript]
+    properties:
+      id: {type: integer}
+      title: {type: string}
+      unavailable: {type: boolean}
+      damaged: {type: boolean}
+      media_file: {type: array}
+      transcript:
+        type: object
+        additionalProperties: true
+        required: [title, sections]
+        properties:
+          title: {type: string}
+          sections:
+            type: array
+            items: {$ref: "#/$defs/section"}
+    $defs:
+      section:
+        type: object
+        additionalProperties: true
+        required: [start, stop, byte_start, byte_stop, turns]
+        properties:
+          start: {type: number}
+          stop: {type: number}
+          byte_start: {type: integer}
+          byte_stop: {type: integer}
+          turns:
+            type: array
+            items: {$ref: "#/$defs/turn"}
+      turn:
+        type: object
+        additionalProperties: true
+        required: [start, stop, byte_start, byte_stop, speaker, text_blocks]
+        properties:
+          start: {type: number}
+          stop: {type: number}
+          byte_start: {type: integer}
+          byte_stop: {type: integer}
+          speaker: {$ref: "#/$defs/speaker"}
+          text_blocks:
+            type: array
+            items: {$ref: "#/$defs/text_block"}
+      speaker:
+        type: object
+        additionalProperties: true
+        required:
+          [ID, href, identifier, last_name, name, length_of_service, view_count,
+           roles, thumbnail]
+        properties:
+          ID: {type: integer}
+          href: {type: string}
+          identifier: {type: string}
+          last_name: {type: string}
+          name: {type: string}
+          length_of_service: {type: integer}
+          view_count: {type: integer}
+          # null mostly for advocates without a stored photo
+          roles: {type: [array, "null"]}
+          thumbnail: {type: [object, "null"]}
+      text_block:
+        type: object
+        additionalProperties: true
+        required: [start, stop, byte_start, byte_stop, text]
+        properties:
+          start: {type: number}
+          stop: {type: number}
+          byte_start: {type: integer}
+          byte_stop: {type: integer}
+          text: {type: string}
