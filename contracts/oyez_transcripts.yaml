@@ -25,7 +25,7 @@ schema:
        second_party_label, term, href, justia_url, manner_of_jurisdiction,
        question, facts_of_the_case, description, conclusion, citation,
        lower_court, advocates, heard_by, oral_argument_audio, timeline,
-       written_opinion, view_count, decided_by, decisions, opinion_announcement]
+       written_opinion, view_count]
     properties:
       ID: {type: integer}
       docket_number: {type: string}
@@ -103,8 +103,7 @@ schema:
         type: object
         additionalProperties: true
         required:
-          [ID, href, identifier, last_name, name, length_of_service, view_count,
-           roles, thumbnail]
+          [ID, href, identifier, last_name, name, length_of_service, view_count]
         properties:
           ID: {type: integer}
           href: {type: string}
