@@ -21,6 +21,35 @@ Template:
 
 ---
 
+## 2026-10-22: Contract `required` lists name only what downstream code depends on
+
+**Decision:** Dropped five fields from `required` in `courtlistener_audio.yaml`
+(`docket.case_name_short`; `audio_meta.case_name_short`, `stt_transcript`,
+`filepath_ia`, `stt_source`, `ia_upload_failure_count`) and five in
+`oyez_transcripts.yaml` (`case.decided_by`, `decisions`, `opinion_announcement`;
+`speaker.roles`, `thumbnail`). They stay modelled under `properties` with their
+existing types; `stt_source` and `ia_upload_failure_count` already allowed
+`null` there and still do.
+
+**Why:** These fields are legitimately empty or null for some of the four
+staged hearings — e.g. `case_name_short` is `''` for 23-980, `stt_transcript`
+is `''` for the two 2022-term hearings, and `decided_by` / `decisions` /
+`opinion_announcement` are `null` for the two cases dismissed as improvidently
+granted. A field that can legitimately be missing must not be `required`, or a
+hearing with a different gap than the four we've seen fails validation for a
+reason that doesn't matter.
+
+**Alternatives considered:** Add `"null"` to the type of every dropped field;
+rejected for `case_name_short`, `stt_transcript`, and `filepath_ia` since the
+actual gap in the data is an empty string, not JSON `null` — adding `null`
+there would accept a value the source never produces.
+
+**Result:** _pending — revisit `required` again once more hearings (e.g. the
+Nader v. LendingTree appeals-court example) are staged, in case they surface a
+gap in a field currently still required._
+
+---
+
 ## 2026-10-20: Verify S3 uploads against the bucket, not the sync exit code
 
 **Decision:** `fetch_and_stage.py` writes its manifest *after* the S3 sync, not

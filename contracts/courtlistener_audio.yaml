@@ -13,7 +13,8 @@ licence:
     recordings and docket metadata treated as public records. Rules observed:
     one account, no credential sharing, requests paced under 5/min,
     no use for FCRA-type decisions, AI-derived outputs labelled as ours,
-    not CourtListener's.classification: public record; no private or sealed audio
+    not CourtListener's.
+classification: public record; no private or sealed audio
 refresh: manual, per batch
 required_provenance_fields: [source_url, retrieved_at, sha256, licence_id]
 quality_expectations:
@@ -31,7 +32,7 @@ schema:
     type: object
     additionalProperties: true
     required:
-      [id, resource_uri, absolute_url, court, court_id, case_name, case_name_short,
+      [id, resource_uri, absolute_url, court, court_id, case_name,
        docket_number, docket_number_core, docket_number_raw, docket_number_source,
        slug, date_argued, date_filed, date_created, date_modified, audio_files,
        clusters, panel, tags, source, blocked, appeal_from, appeal_from_str,
@@ -66,10 +67,10 @@ schema:
     type: object
     additionalProperties: true
     required:
-      [id, resource_uri, absolute_url, docket, case_name, case_name_short,
+      [id, resource_uri, absolute_url, docket, case_name,
        download_url, local_path_mp3, local_path_original_file, sha1, source,
        duration, processing_complete, blocked, panel, date_created, date_modified,
-       filepath_ia, stt_status, stt_source, stt_transcript, ia_upload_failure_count]
+       stt_status]
     properties:
       id: {type: integer}
       resource_uri: {type: string}
