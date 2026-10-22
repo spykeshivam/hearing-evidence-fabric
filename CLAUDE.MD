@@ -12,7 +12,7 @@ A legal-tech data engineering POC in Microsoft Fabric linking court hearing audi
 Repo: github.com/spykeshivam/hearing-evidence-fabric (public). Layout: contracts/, ontology/, scripts/, src/hearing_evidence/, tests/, fabric/ (Git-synced), eval/labels/, terraform/, docs/.
 
 ## Data (all public)
-Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Facebook v. Amalgamated Bank (23-980, term 2024), Gonzalez v. Google (21-1333, term 2022), Twitter v. Taamneh (21-1496, term 2022). An appeals-court hearing (Nader v. LendingTree, 25-7045) may be added later as an unscored example.
+Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Facebook v. Amalgamated Bank (23-980, term 2024), Gonzalez v. Google (21-1333, term 2022), Twitter v. Taamneh (21-1496, term 2022).
 - CourtListener API v4 gives docket, panel and audio (audio_files link from the docket; MP3 at https://storage.courtlistener.com/ + local_path_mp3). Free limits: 5/min, 50/hour, 125/day. Pace calls, never loop probes, ask me before any CourtListener call.
 - Oyez (undocumented API): api.oyez.org/cases/{term}/{docket} -> oral_argument_audio[].href -> transcript.sections[].turns[] with speaker.name, start, stop, text_blocks. It is the ground truth. Oyez audio is access-denied, so CourtListener's MP3 is the audio. Checked for NVIDIA: last Oyez stop 5230.49 s vs CourtListener duration 5233 s.
 - Licences: Oyez is CC BY-NC 4.0 (attribute, non-commercial, no endorsement implied). CourtListener terms: no explicit data licence; respect rate limits, one account, never share the token. Transcript text is Oyez's own published transcript; label speaker resolution and citation extractions as our own AI outputs. Keep Oyez files out of the repo.
