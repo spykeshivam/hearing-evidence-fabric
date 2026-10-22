@@ -13,7 +13,8 @@ licence:
     recordings and docket metadata treated as public records. Rules observed:
     one account, no credential sharing, requests paced under 5/min,
     no use for FCRA-type decisions, AI-derived outputs labelled as ours,
-    not CourtListener's.classification: public record; no private or sealed audio
+    not CourtListener's.
+classification: public record; no private or sealed audio
 refresh: manual, per batch
 required_provenance_fields: [source_url, retrieved_at, sha256, licence_id]
 quality_expectations:
