@@ -10,7 +10,7 @@ Hearing Evidence is a Fabric lakehouse that turns public court-hearing audio int
 
 **Done means all of these are true:**
 
-- The 4 Supreme Court hearings flow S3 to gold to Power BI from one pipeline trigger, with no manual steps. The appeals-court hearing joins later as an unscored addition.
+- The 4 Supreme Court hearings flow S3 to gold to Power BI from one pipeline trigger, with no manual steps.
 - Citation extraction is compared: eyecite vs an LLM extractor, on 40 hand-labelled utterances (precision, recall, F1).
 - 3 planted bad audio files land in quarantine, and an empty batch fails the pipeline instead of passing quietly.
 - A restricted-matter row-level security demo works in the semantic model.
@@ -46,7 +46,6 @@ Four constraints shape every choice below; each row says what it changed.
 
 **Your earlier answers, turned into decisions:**
 
-- The appeals-court hearing has no Oyez transcript, so it is audio-quality only: scored by the librosa quality gate and shown in the quarantine plot, with no `fact_utterance` rows. The README says plainly that this is a blueprint.
 - AWS S3 stays in the design as the cross-cloud source; you will create the account and bucket yourself.
 - Data science carries more weight than data engineering (about 55/45), so evaluation and plots get dedicated time on day 2.
 - If things go badly, you will take an extra day. The buffer day is already in the plan.
@@ -512,7 +511,7 @@ Day 2 is the heavy one, so its semantic model and report sit in the buffer day b
 - [ ] AWS: bucket in eu-north-1, block public access, read-only IAM user (`he-raw-fabric-user`, policy `he-raw-fabric-read`), separate upload profile (`he-uploader`) (30 min)
 - [ ] Tokens: CourtListener API token (10 min)
 - [ ] Licences: read CourtListener and Oyez terms and write them into `contracts/*.yaml` (30 min)
-- [ ] `fetch_and_stage.py`: the 4 Supreme Court hearings with Oyez transcripts (plus the appeals-court hearing later as an unscored addition), sha256 manifest, upload to S3 (45 min)
+- [ ] `fetch_and_stage.py`: the 4 Supreme Court hearings with Oyez transcripts, sha256 manifest, upload to S3 (45 min)
 
 **Gate:** `aws s3 ls --recursive` shows the 4 audio files plus docket, Oyez and manifest files, and every audio hash is in the manifest.
 

@@ -44,9 +44,9 @@ rejected for `case_name_short`, `stt_transcript`, and `filepath_ia` since the
 actual gap in the data is an empty string, not JSON `null` — adding `null`
 there would accept a value the source never produces.
 
-**Result:** _pending — revisit `required` again once more hearings (e.g. the
-Nader v. LendingTree appeals-court example) are staged, in case they surface a
-gap in a field currently still required._
+**Result:** The project's scope is fixed at these four hearings, so the
+`required` lists are final: no further hearings will be staged that could
+surface a gap in a field still marked `required`.
 
 ---
 
