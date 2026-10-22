@@ -11,7 +11,6 @@ Hearing Evidence is a Fabric lakehouse that turns public court-hearing audio int
 **Done means all of these are true:**
 
 - The 4 Supreme Court hearings flow S3 to gold to Power BI from one pipeline trigger, with no manual steps. The appeals-court hearing joins later as an unscored addition.
-- ASR word error rate (WER) and diarization error are measured on the 4 Supreme Court hearings against Oyez, split by model and by audio quality bucket.
 - Citation extraction is compared: eyecite vs an LLM extractor, on 40 hand-labelled utterances (precision, recall, F1).
 - 3 planted bad audio files land in quarantine, and an empty batch fails the pipeline instead of passing quietly.
 - A restricted-matter row-level security demo works in the semantic model.
@@ -21,16 +20,14 @@ Hearing Evidence is a Fabric lakehouse that turns public court-hearing audio int
 
 ### Deliverables you will show
 
-Six things a reader can look at, each answering one question. Numbers in any mock-up are invented; real values come from the run.
+Four things a reader can look at, each answering one question. Numbers in any mock-up are invented; real values come from the run.
 
 | # | Deliverable | Question it answers | Built on |
 | --- | --- | --- | --- |
-| 1 | Report tile: word error rate by hearing, small model vs large model | Is the bigger model worth it? | `fact_asr_eval` |
-| 2 | Report tile: share of speaking time for bench, petitioner and respondent | How is hearing time split between the bench and each side? | `fact_utterance` |
-| 3 | Report tile: word error rate against silence share, one dot per hearing | Does bad audio explain the errors? | `fact_asr_eval`, `dim_audio_file` |
-| 4 | Report tile: citation extraction precision, recall and F1, rule-based vs LLM | Does a language model beat a simple rule at finding citations? | `gold_eval_extraction` |
-| 5 | Pipeline health page: last run, rows per layer, failed checks, quarantine rate | Did the load work, and did it quietly load nothing? | `dq_results`, `pipeline_run_log` |
-| 6 | Restricted-case demo: the same report viewed as two roles | Are restricted cases really hidden from the general role? | `dim_case.is_restricted`, role `GeneralCounsel` |
+| 1 | Report tile: share of speaking time for bench, petitioner and respondent | How is hearing time split between the bench and each side? | `fact_utterance` (from Oyez reference turns) |
+| 2 | Report tile: citation extraction precision, recall and F1, rule-based vs LLM | Does a language model beat a simple rule at finding citations? | `gold_eval_extraction` |
+| 3 | Pipeline health page: last run, rows per layer, failed checks, quarantine rate | Did the load work, and did it quietly load nothing? | `dq_results`, `pipeline_run_log` |
+| 4 | Restricted-case demo: the same report viewed as two roles | Are restricted cases really hidden from the general role? | `dim_case.is_restricted`, role `GeneralCounsel` |
 
 One more output, outside the report: the evidence-search query (section 14), which returns a case's utterances with an audio link and start second.
 
@@ -43,13 +40,13 @@ Four constraints shape every choice below; each row says what it changed.
 | Constraint | Your number | Design consequence |
 | --- | --- | --- |
 | Time | 3 days + 1 buffer | UI-first build, one workspace, default Spark pool (no custom Environment), thresholds calibrated from data rather than tuned |
-| Money | under £20 | Paid F2 capacity (hearingevidencef2, UK West) on Azure free credit, paused when idle; free Colab GPU for ASR; no Azure OpenAI, Key Vault or Purview |
+| Money | under £20 | Paid F2 capacity (hearingevidencef2, UK West) on Azure free credit, paused when idle; no Azure OpenAI, Key Vault or Purview |
 | Learning | Fabric from zero | Each Fabric item is used once with a stated purpose; glossary at the end |
 | Focus | easily deviates | Every task is 90 minutes or less; the 45-minute stuck rule in section 17 |
 
 **Your earlier answers, turned into decisions:**
 
-- Weak ground truth is acceptable for non-Supreme-Court hearings, so they are reported as "agreement with a machine reference", never as accuracy. The README says plainly that this is a blueprint.
+- The appeals-court hearing has no Oyez transcript, so it is audio-quality only: scored by the librosa quality gate and shown in the quarantine plot, with no `fact_utterance` rows. The README says plainly that this is a blueprint.
 - AWS S3 stays in the design as the cross-cloud source; you will create the account and bucket yourself.
 - Data science carries more weight than data engineering (about 55/45), so evaluation and plots get dedicated time on day 2.
 - If things go badly, you will take an extra day. The buffer day is already in the plan.
@@ -58,7 +55,7 @@ Four constraints shape every choice below; each row says what it changed.
 
 &#91;embedded content: architecture · sources to S3, Fabric layers, consumers\]
 
-Audio is never copied: Fabric reads S3 through one shortcut, Colab does the GPU work and writes back to S3, and every layer is governed and tested.
+Audio is never copied: Fabric reads S3 through one shortcut, and every layer is governed and tested. Oyez transcripts, read through the same shortcut, are the source for speaker turns and transcript text.
 
 ## 4. Sources, licences and the data contract
 
@@ -68,8 +65,7 @@ Four sources feed the pipeline. Licence terms below are my understanding only; y
 | --- | --- | --- | --- | --- |
 | CourtListener audio API | Oral-argument MP3s, audio metadata (duration, hash, panel), docket link | Unstructured input | **\[VERIFY\]** Court audio is generally public; Free Law Project sets API terms and rate limits | Read the API terms; record licence text and URL in the contract |
 | CourtListener dockets | Court, docket number, case name, argued date, judges | Structured input | **\[VERIFY\]** same as above | Inspect one real response and fix field names in the contract |
-| Oyez (Supreme Court) | Speaker-labelled, timestamped transcripts; advocates and sides | Ground truth for ASR and speakers | **CC BY-NC 4.0, quoted from the oyez.org footer on 16 Oct 2026: attribution required, no commercial use. No official API; an undocumented one exists at api.oyez.org** | Read terms. If scraping or reuse is barred, fall back to CourtListener transcripts only and say so |
-| Your own ASR output | Whisper plus pyannote JSON | Derived input | You own it | Store in S3 with model, version and input audio hash |
+| Oyez (Supreme Court) | Speaker-labelled, timestamped transcripts; advocates and sides | Transcript source: speaker turns and text for `fact_utterance`, plus speaker-role ground truth | **CC BY-NC 4.0, quoted from the oyez.org footer on 16 Oct 2026: attribution required, no commercial use. No official API; an undocumented one exists at api.oyez.org** | Read terms. If scraping or reuse is barred, fall back to CourtListener transcripts only and say so |
 
 **Contract format:** one YAML file per source in `contracts/`, validated by a JSON Schema in CI. Fields:
 
@@ -89,7 +85,7 @@ Four sources feed the pipeline. Licence terms below are my understanding only; y
 - No share-alike condition. An older 2003 source said BY-NC-SA; ignore it.
 - Do not use the Oyez name or logo as if they endorse the project.
 - Keep Oyez files out of the public repo and the S3 bucket private. Short snippets in screenshots, with attribution, are fine.
-- README line: "Speaker-labelled transcripts from Oyez (oyez.org), CC BY-NC 4.0, normalised and used as the evaluation reference."
+- README line: "Speaker-labelled transcripts from Oyez (oyez.org), CC BY-NC 4.0, normalised and used as the source transcript."
 
 ## 5. S3 bucket, OneLake shortcut and raw ingestion
 
@@ -106,7 +102,6 @@ s3://he-raw-<suffix>/
   oyez/
     cases/<term>_<docket>.json               structured (advocates, sides)
     transcripts/<term>_<docket>.json         structured (turns, timestamps)
-  asr/run=<asr_run_id>/<hearing_id>.json     derived, written from Colab
   _manifests/batch=<batch_id>/objects.csv    sha256, source_url, retrieved_at, licence_id, bytes
 ```
 
@@ -118,7 +113,6 @@ s3://he-raw-<suffix>/
 | Audio and docket JSON | Structured | Spark `multiLine` JSON read from the shortcut path | `brz_docket_json`, `brz_audio_meta_json`: payload kept raw, plus `_source_file`, `_batch_id`, `_ingested_at` |
 | Oyez JSON | Structured | Same as above | `brz_oyez_case_json`, `brz_oyez_turn_json` |
 | Manifest CSV | Structured | Spark CSV read | `brz_object_manifest`: chain-of-custody record per object |
-| ASR JSON | Derived | Spark JSON read | `brz_asr_segment_raw`, `brz_asr_run` |
 
 **Rules for bronze:** append-only, no cleaning, no joins. Ingestion is incremental: anti-join the manifest on `sha256` so a rerun only picks up new objects. Recompute the audio hash and compare it with the manifest; a mismatch goes to quarantine.
 
@@ -132,7 +126,6 @@ s3://he-raw-<suffix>/
 
 **Gotchas:**
 
-- S3 shortcuts are read-only. Colab therefore writes ASR output to S3 with boto3, and Fabric sees it through the same shortcut.
 - The shortcut sits under Files, not Tables, because MP3 and JSON are not Delta.
 - Keys never go into the repo. The connection is created once by hand; its ID is passed to scripts as a variable.
 
@@ -151,9 +144,8 @@ Three lakehouses in one workspace, one per layer: `lh_bronze`, `lh_silver`, `lh_
 - `slv_hearing`: one row per hearing, joins audio, docket and Oyez case by docket number and term
 - `slv_audio_quality`: librosa metrics and gate status per audio file
 - `slv_audio_quarantine`: failed files with reason and timestamp; nothing downstream reads them
-- `slv_asr_segment`: typed ASR segments (start, end, text, confidence, speaker cluster)
-- `slv_ref_turn`: Oyez turns (speaker, role, start, end, text) for scoring only
-- `slv_utterance`: merged speaker turns with resolved speaker, confidence and method
+- `slv_ref_turn`: Oyez turns (speaker, role, start, end, text), the source for `fact_utterance`
+- `slv_utterance`: Oyez turns resolved to a canonical speaker and party, with confidence and method
 - `slv_entity_mention`: spoken names with candidates and the chosen resolution
 - `slv_citation_mention`: eyecite and LLM mentions, with method and validity flag
 - `slv_case_party`: parties parsed from docket and Oyez advocates, with source and confidence
@@ -165,11 +157,11 @@ Three lakehouses in one workspace, one per layer: `lh_bronze`, `lh_silver`, `lh_
 - Surrogate keys are deterministic hashes of natural keys, so a rebuild produces identical keys.
 - Silver and gold write by Delta `MERGE` on those keys; reruns never duplicate.
 - Every table keeps `_batch_id` and `_run_id`, so any row traces back to one pipeline run.
-- ASR output is frozen in S3. Everything after it is deterministic, which is what makes the destroy-and-rebuild test meaningful.
+- Oyez transcripts are frozen in S3. Everything after them is deterministic, which is what makes the destroy-and-rebuild test meaningful.
 
 ## 7. Star schema: grain, keys, conformed dimensions
 
-The model has 3 facts, 9 dimensions and 2 bridges. Changes from your candidate list: `dim_judge` folds into `dim_speaker` (a judge is a speaker with a role), and I added `dim_hearing`, `dim_asr_run` and `dim_citation`, each with a reason below.
+The model has 2 facts, 8 dimensions and 2 bridges. Changes from your candidate list: `dim_judge` folds into `dim_speaker` (a judge is a speaker with a role), and I added `dim_hearing` and `dim_citation`, each with a reason below.
 
 | Table | Grain (one row per) | Key | Main attributes and foreign keys |
 | --- | --- | --- | --- |
@@ -180,23 +172,20 @@ The model has 3 facts, 9 dimensions and 2 bridges. Changes from your candidate l
 | dim\_speaker | person or role seen speaking | `speaker_key` | canonical name, role (justice, advocate, unknown), CourtListener person id if known |
 | dim\_hearing | oral-argument session | `hearing_key` | FKs to case, court, date, audio file; `is_scored` (has Oyez truth). Exists because a hearing can span several audio files |
 | dim\_audio\_file | audio object version (sha256) | `audio_file_key` | S3 path, sha256, codec, sample rate, duration, quality metrics, gate status, source URL, retrieved\_at, licence |
-| dim\_asr\_run | model plus parameters run | `asr_run_key` | engine, model, version, compute type, diarization model, run time, code commit. Exists so runs can be compared |
 | dim\_citation | normalised authority | `citation_key` | normalised cite, type (case, statute), reporter, volume, page, resolved flag |
 | bridge\_case\_party | party on a side of a case | (`case_key`, `party_key`) | side (petitioner, respondent, appellant), source, confidence |
 | bridge\_hearing\_judge | judge on a panel | (`hearing_key`, `speaker_key`) | seat order if known |
-| fact\_utterance | speaker turn in a hearing, from the chosen production ASR run | `utterance_key` | FKs: hearing, case, court, date, speaker, represented party (or unknown), `asr_run_key`. Measures: start\_s, end\_s, duration\_s, word\_count. Also resolution method and confidence |
+| fact\_utterance | speaker turn in a hearing, from the Oyez reference transcript | `utterance_key` | FKs: hearing, case, court, date, speaker, represented party (or unknown). Measures: start\_s, end\_s, duration\_s, word\_count. Also resolution method and confidence |
 | fact\_citation\_mention | citation mention in an utterance, per extraction method | `citation_mention_key` | FKs: hearing, case, date, speaker, citation; degenerate `utterance_key`. Method (eyecite or llm), char span, confidence, schema-valid flag |
-| fact\_asr\_eval | hearing per ASR run | (`hearing_key`, `asr_run_key`) | WER, substitutions, deletions, insertions, errors (their sum), reference words, approximate DER, speaker-count error, quality bucket |
 
 **Conformed dimensions** are the ones shared by more than one fact, so the same filter works across all of them:
 
-| Fact | date | court | case | hearing | speaker | citation | asr\_run |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| fact\_utterance | yes | yes | yes | yes | yes |  | yes |
-| fact\_citation\_mention | yes | yes | yes | yes | yes | yes |  |
-| fact\_asr\_eval | yes | yes | yes | yes |  |  | yes |
+| Fact | date | court | case | hearing | speaker | citation |
+| --- | --- | --- | --- | --- | --- | --- |
+| fact\_utterance | yes | yes | yes | yes | yes |  |
+| fact\_citation\_mention | yes | yes | yes | yes | yes | yes |
 
-**Serving table:** `gold_evidence_index` is deliberately denormalised, one row per evidence item (an utterance or a citation mention) per case. It carries the audio path, start and end seconds, snippet text, speaker, citations, confidence, `is_restricted` and an `evidence_hash`. The hash is sha256 of audio checksum, time span, text and ASR run, so a changed snippet is detectable.
+**Serving table:** `gold_evidence_index` is deliberately denormalised, one row per evidence item (an utterance or a citation mention) per case. It carries the audio path, start and end seconds, snippet text, speaker, citations, confidence, `is_restricted` and an `evidence_hash`. The hash is sha256 of audio checksum, time span and text, so a changed snippet is detectable.
 
 **Modelling decisions to defend in an interview:**
 
@@ -224,7 +213,7 @@ Each row passes or fails the purpose test: does it do a job in the data flow tha
 | Warehouse | Skip | Duplicates the lakehouse for this data volume, costs capacity, adds a second copy of gold. Interview answer: use it if you need multi-table T-SQL transactions or stored procedures |
 | Dataflow Gen2 and Copy job | Skip | No low-code transforms needed, and notebooks already ingest |
 | Eventstream, Eventhouse (real-time) | Skip | The data is batch |
-| Experiments (MLflow) | Skip | `fact_asr_eval` plus plots already compare runs; a second tracker is duplication |
+| Experiments (MLflow) | Skip | No model-comparison step in this scope; nothing to track |
 | Purview | Skip | Needs extra licences and setup. Use Fabric's built-in lineage view, workspace domain and endorsement instead (free) **\[VERIFY\]** admin rights |
 | Fabric IQ ontology | Skip **\[PREVIEW\]** | Document the ontology as Turtle plus a mapping table in the repo, and test it (section 11). Revisit only on the buffer day |
 | Copilot and AI functions | Skip **\[PAID\]** | Burns capacity and hides model choice. The LLM call is explicit in a notebook so you can evaluate it |
@@ -232,9 +221,9 @@ Each row passes or fails the purpose test: does it do a job in the data flow tha
 
 **Capacity note:** the paid F2 capacity (hearingevidencef2, UK West) runs on Azure free credit and powers the whole project. Terraform attaches the workspace to it by name at creation. Pause it after every session. Cost is in section 18.
 
-## 9. Audio processing: quality gate, transcription, evaluation
+## 9. Audio processing: quality gate
 
-Three stages: a librosa quality gate in Fabric, transcription and diarization on a free Colab GPU, then evaluation back in Fabric against Oyez.
+A librosa quality gate in Fabric checks every audio file before anything downstream reads it.
 
 ### 9.1 Quality gate (librosa, notebook `nb_02_audio_quality`)
 
@@ -254,40 +243,17 @@ Metrics are computed per file on the driver. Thresholds below are starting point
 
 **Proof it works:** create 3 synthetic bad files from a good one (truncated, 70% silence inserted, clipped by gain). They must be the only quarantined files. The same metric functions are unit-tested in CI on generated sine waves, so the tests need no audio.
 
-### 9.2 Transcription and diarization (Colab, notebook `colab/transcribe.ipynb`)
-
-- Whisper has no useful GPU option inside a small Fabric capacity, so ASR runs outside Fabric and lands in S3. This is a real-world pattern: GPU work outside the lakehouse, with provenance back in.
-- Engine: `faster-whisper`, word timestamps on, run twice on the same files: `small.en` and `large-v3`. Diarization: `pyannote` 3.1 **\[VERIFY\]** gated model; accept its terms on Hugging Face and use a token.
-- Each output JSON carries `asr_run_id`, model, parameters, code commit and the **sha256 of its input audio**. Fabric rejects any ASR file whose audio hash is not in the manifest.
-- Process the first 15 minutes of each hearing. That keeps Colab sessions short and Oyez alignment trivial (timestamps start at 0).
-
-### 9.3 Evaluation (notebook `nb_05_eval`, output `fact_asr_eval`)
-
-- **Reference:** Oyez turns for the 4 Supreme Court hearings. The appeals-court hearing, if added, is unscored and appears only in quality and speaking-time plots.
-- **WER:** `jiwer` after one fixed normalisation (lowercase, strip punctuation, expand numbers). Report substitutions, deletions and insertions separately.
-- **Speaker error:** map each diarization cluster to the Oyez speaker with the most overlap, then compute approximate DER with `pyannote.metrics` and a 0.5 s collar. Also record speaker-count error. Oyez timestamps are coarse turn boundaries, so label this "approximate DER".
-- **Slices:** WER by model, by audio quality bucket, and by speaker role (justice vs advocate). Also a legal-term error rate: how often party and case names are misrecognised. That number motivates the entity-resolution step.
-
-### 9.4 Decision rule for model work
-
-Denoising, source separation, fine-tuning or a TCN or VAE enter the project only if the data demands them:
-
-- If WER in the worst quality quartile is at least 5 absolute points above the best quartile, **and** WER correlates with measured noise rather than with accents or vocabulary, try one denoise step and re-measure on the same files.
-- If legal-term error rate is above 20% and you have corrected transcripts to train on, consider a prompt or vocabulary hint before any fine-tuning.
-- Otherwise write "measured, not needed" in `docs/decisions.md`. That is a legitimate and credible result.
-
 ## 10. NLP: speakers, names and citations
 
 Every NLP step writes a `method` and a `confidence` column, so each result can be audited and scored.
 
 ### 10.1 Resolving speakers
 
-Diarization gives anonymous clusters (`SPEAKER_00`). The pipeline resolves them to named people or roles in tiers:
+Oyez turns name a speaker per turn (for example "Justice Kagan", "Mr. Francisco"). The pipeline resolves each name to a canonical `dim_speaker` row and role in tiers:
 
-1. **Oyez overlap** (scored hearings only): the cluster with the most time overlap with an Oyez speaker takes that name. Method `oyez_overlap`.
-2. **Address patterns** (all hearings): phrases such as "Mr. Chief Justice", "Justice X", "thank you, counsel" identify who is being addressed or who is speaking. Method `address_rule`.
-3. **Roster match:** names from the panel in `bridge_hearing_judge`. Method `roster`.
-4. Anything left is role-only (`justice` or `advocate` by speaking pattern) or `unknown`, key -1.
+1. **Roster match:** names from the panel and advocates in `bridge_hearing_judge` and the docket. Method `roster`.
+2. **Address patterns:** phrases such as "Mr. Chief Justice", "Justice X", "thank you, counsel" disambiguate a generic or partial speaker label. Method `address_rule`.
+3. Anything left is role-only (`justice` or `advocate` by speaking pattern) or `unknown`, key -1.
 
 ### 10.2 Resolving spoken names to case parties and judges
 
@@ -297,8 +263,8 @@ Diarization gives anonymous clusters (`SPEAKER_00`). The pipeline resolves them 
 
 ### 10.3 Extracting citations
 
-- **Baseline:** `eyecite` (open source, built for written citations). Spoken citations are often just case names ("Chevron", "Marbury"), so I expect low recall here. That is a finding, not a failure.
-- **LLM extractor:** one prompt per utterance returning JSON that a `pydantic` model validates: `text`, `type` (case, statute, regulation, other), `normalised`, `char_start`, `char_end`, `confidence`. Rules: the span must be a substring of the utterance (grounding check), allow 2 retries, count schema failures as a metric. The utterances are public, so sending them to an external API is acceptable; keep the key out of the repo.
+- **Baseline:** `eyecite` (open source, built for written citations), run on the Oyez transcript text in `slv_ref_turn`. Spoken citations are often just case names ("Chevron", "Marbury"), so I expect low recall here. That is a finding, not a failure.
+- **LLM extractor:** one prompt per Oyez utterance returning JSON that a `pydantic` model validates: `text`, `type` (case, statute, regulation, other), `normalised`, `char_start`, `char_end`, `confidence`. Rules: the span must be a substring of the utterance (grounding check), allow 2 retries, count schema failures as a metric. The utterances are public, so sending them to an external API is acceptable; keep the key out of the repo.
 - **Optional guard:** check extracted case cites against CourtListener's citation lookup to catch invented cases **\[VERIFY\]**. First on the cut list.
 
 ### 10.4 Hand-labelled evaluation sample
@@ -345,12 +311,10 @@ Arrows read subject to object: an Utterance is part of a Hearing, a Citation ref
 | Speaking Time (s) | `SUM(fact_utterance[duration_s])` | Base measure for everything below |
 | Speaking Time Share | `DIVIDE([Speaking Time (s)], CALCULATE([Speaking Time (s)], REMOVEFILTERS(dim_speaker)))` | Share of hearing time by speaker, role or party |
 | Advocate Time by Party | `CALCULATE([Speaking Time (s)], dim_speaker[role] = "advocate")` | Your "speaking time per party" measure, sliced by `dim_party` |
-| Words per Minute | `DIVIDE(SUM(fact_utterance[word_count]), [Speaking Time (s)] / 60)` | Pace; also a plausibility check on ASR |
+| Words per Minute | `DIVIDE(SUM(fact_utterance[word_count]), [Speaking Time (s)] / 60)` | Pace; also a plausibility check on the transcript split |
 | Utterances | `COUNTROWS(fact_utterance)` | Volume |
 | Citation Mentions | `COUNTROWS(fact_citation_mention)` | Volume, sliced by method |
 | Distinct Authorities Cited | `DISTINCTCOUNT(fact_citation_mention[citation_key])` | Breadth of authority |
-| WER (weighted) | `DIVIDE(SUM(fact_asr_eval[errors]), SUM(fact_asr_eval[ref_words]))` | Total errors over total reference words. Averaging per-hearing WER would overweight short hearings |
-| Approx DER | weighted by reference duration | Diarization quality |
 | Quarantine Rate | `DIVIDE(COUNTROWS(FILTER(dim_audio_file, dim_audio_file[gate_status] = "QUARANTINE")), COUNTROWS(dim_audio_file))` | Gate health. `dim_audio_file` keeps quarantined files; they simply never join to facts |
 | Hours Since Last Load | `DATEDIFF(MAX(pipeline_run_log[finished_at]), NOW(), HOUR)` | Freshness on the health page |
 
@@ -362,11 +326,10 @@ Governance here means four things you can show working: contracts, provenance, l
 
 ### 12.1 Provenance and chain of custody
 
-Every object carries `source_url`, `retrieved_at`, `sha256` and `licence_id` from the manifest into bronze, silver and gold. Three mechanisms keep the chain intact:
+Every object carries `source_url`, `retrieved_at`, `sha256` and `licence_id` from the manifest into bronze, silver and gold. Two mechanisms keep the chain intact:
 
 - Recomputed audio hash must equal the manifest hash, or the file is quarantined.
-- ASR files must name the hash of the audio they were made from.
-- `evidence_hash` on each evidence-index row ties a snippet to its audio, time span, text and ASR run. State in the README that this is a demonstration of the idea, not a forensically sound chain of custody.
+- `evidence_hash` on each evidence-index row ties a snippet to its audio, time span and text. State in the README that this is a demonstration of the idea, not a forensically sound chain of custody.
 
 ### 12.2 Lineage
 
@@ -416,7 +379,7 @@ Checks are plain PySpark assertions in `src/hearing_evidence/dq.py`. Each run ap
 | Silver | Gate status in PASS, WARN or QUARANTINE only; quarantine rate below 30% | Domain, rate | Warn, then fail above threshold |
 | Silver | Segment times monotonic; end after start; within audio duration | Validity | Drop row, log |
 | Silver | Words per minute between 80 and 220 per hearing | Plausibility | Warn |
-| Silver | Speaker clusters per hearing between 2 and 12 | Plausibility | Warn |
+| Silver | Distinct resolved speakers per hearing between 2 and 12 | Plausibility | Warn |
 | Silver | Citation mention span is a substring of its utterance | Grounding | Reject mention |
 | Silver | Share of utterances with unknown speaker below 25% | Resolution | Warn |
 | Gold | Primary keys unique; no nulls in foreign keys (use -1 member) | Uniqueness, referential | Fail |
@@ -433,32 +396,28 @@ Checks are plain PySpark assertions in `src/hearing_evidence/dq.py`. Each run ap
 
 ## 14. Analytics and demo plots
 
-Plots are the part that earns engagement, so each one answers a stated question. README images come from a Python notebook (`nb_08_plots`, matplotlib or seaborn, saved to `docs/img/`). The interactive versions live in Power BI. Numbers are whatever the data says; do not pre-decide the story.
+Plots are the part that earns engagement, so each one answers a stated question. README images come from a Python notebook (`nb_06_plots`, matplotlib or seaborn, saved to `docs/img/`). The interactive versions live in Power BI. Numbers are whatever the data says; do not pre-decide the story.
 
 **Example outputs.** The four tiles below show the shape of the report. Every number is invented, so none is a result or a target; the real values come from the run.
 
 &#91;embedded content: example report tiles · invented numbers, shape only\]
 
-They map to deliverables 1 to 4 in section 1: error rate by hearing and model, speaking-time split, audio quality against error, and citation extraction by method.
+They map to the deliverables in section 1: speaking-time split and citation extraction by method.
 
 | # | Plot | Question it answers | Source |
 | --- | --- | --- | --- |
-| 1 | WER by hearing, small.en vs large-v3 (grouped bars) | Is the bigger model worth it? | `fact_asr_eval` |
-| 2 | WER vs silence ratio or loudness (scatter, one point per hearing) | Does audio quality explain errors? This decides whether denoising is tried | `fact_asr_eval`, `dim_audio_file` |
-| 3 | WER by speaker role (justice vs advocate) | Who is hard to transcribe, and why? | `fact_asr_eval`, `fact_utterance` |
-| 4 | Approximate DER by hearing | How good is diarization on courtroom audio? | `fact_asr_eval` |
-| 5 | Speaking-time share per side per hearing (stacked bars) | How is time split between bench, petitioner and respondent? | `fact_utterance` |
-| 6 | Speaker timeline for one hearing (swimlane, one lane per speaker) | What does a hearing look like? The memorable README hero image | `fact_utterance` |
-| 7 | Citation extraction precision, recall, F1 by method | Does the LLM beat eyecite on spoken legal text? | hand labels, `fact_citation_mention` |
-| 8 | Most-cited authorities across hearings | What do these courts lean on? | `fact_citation_mention`, `dim_citation` |
-| 9 | Quarantine and data-quality summary | Does the gate catch what it should? | `slv_audio_quarantine`, `dq_results` |
+| 1 | Speaking-time share per side per hearing (stacked bars) | How is time split between bench, petitioner and respondent? | `fact_utterance` |
+| 2 | Speaker timeline for one hearing (swimlane, one lane per speaker) | What does a hearing look like? The memorable README hero image | `fact_utterance` |
+| 3 | Citation extraction precision, recall, F1 by method | Does the LLM beat eyecite on spoken legal text? | hand labels, `fact_citation_mention` |
+| 4 | Most-cited authorities across hearings | What do these courts lean on? | `fact_citation_mention`, `dim_citation` |
+| 5 | Quarantine and data-quality summary | Does the gate catch what it should? | `slv_audio_quarantine`, `dq_results` |
 
 **Evidence search demo (SQL endpoint):** given a case name, return evidence items ordered by time, each with speaker, snippet, audio path and start second. A reader can jump to the exact moment in the audio. Show the same query as `GeneralCounsel` and `RestrictedTeam` to tie in the security story.
 
 **Power BI report pages:**
 
-1. **Evaluation:** plots 1-4 and 7 with a slicer for model and court.
-2. **Hearing analytics:** plots 5, 6 and 8 with slicers for court, case and date.
+1. **Evaluation:** plot 3 with a slicer for court.
+2. **Hearing analytics:** plots 1, 2 and 4 with slicers for court, case and date.
 3. **Pipeline health:** latest run, rows per layer, failed checks, quarantine rate, hours since last load.
 
 Do not add a plot that does not answer a question in this table.
@@ -483,7 +442,6 @@ Two systems carry the build: **Fabric Git integration** for the items you build 
 | Contract validation | Every YAML in `contracts/` matches the contract JSON Schema |
 | Ontology test | Every ontology concept maps to a real table and key in `concept_mapping.csv` |
 | `terraform fmt -check` and `terraform validate` | IaC is syntactically valid |
-| `nbstripout` check on `colab/` | No outputs or secrets leaked in notebooks |
 
 CI cannot run Fabric notebooks. The Fabric-side proof is the smoke test in 15.4.
 
@@ -508,7 +466,7 @@ One promotion from `dev` to `test` workspace on the same capacity. Use it to sho
 4. Trigger the pipeline
 5. Run `scripts/smoke_test.sql` on the gold SQL endpoint: row counts per table must equal the pre-destroy counts, and `dq_results` must show no failures
 
-Pass means counts match exactly. ASR output is frozen in S3, so the rebuild is deterministic. Resume the paused F2 capacity before this test and pause it again after, and put a screenshot or short video of the successful rebuild in the README.
+Pass means counts match exactly. Oyez transcripts are frozen in S3, so the rebuild is deterministic. Resume the paused F2 capacity before this test and pause it again after, and put a screenshot or short video of the successful rebuild in the README.
 
 **Time box:** 4 hours. If the Fabric provider lacks a resource you need, script it with REST and move on; log the gap in `docs/decisions.md`. A documented gap is better than an overrun.
 
@@ -527,16 +485,15 @@ hearing-evidence-fabric/
   src/hearing_evidence/     audio_qc.py, ids.py, parse_courtlistener.py, parse_oyez.py,
                             resolve.py, citations.py, dq.py
   tests/                    pytest: synthetic signals, fixture JSON
-  colab/                    transcribe.ipynb (faster-whisper + pyannote)
   fabric/                   Git-synced: notebooks, pipeline, semantic model, report
   eval/labels/              citations.jsonl, name_mentions.jsonl
   terraform/                providers.tf, main.tf, variables.tf, outputs.tf
   docs/                     decisions.md, limitations.md, img/, demo.gif
 ```
 
-**Notebook list** (names fixed so the pipeline and README agree): `nb_01_bronze_ingest`, `nb_02_audio_quality`, `nb_03_bronze_asr`, `nb_04_silver_transcripts`, `nb_05_eval`, `nb_06_nlp`, `nb_07_gold_build`, `nb_08_plots`.
+**Notebook list** (names fixed so the pipeline and README agree): `nb_01_bronze_ingest`, `nb_02_audio_quality`, `nb_03_silver_transcripts`, `nb_04_nlp`, `nb_05_gold_build`, `nb_06_plots`.
 
-**README must contain:** the pitch, the architecture diagram, 3-4 of the plots, a "what I measured" results table, a "known limits" list (weak ground truth outside Supreme Court, small sample, RLS gotcha), the rebuild command, the cost breakdown, and a sources and licences block: Oyez attribution (CC BY-NC 4.0, normalised and used as the evaluation reference), credit to Free Law Project / CourtListener, and a line stating that all transcripts, speaker labels and extractions produced by this project are its own AI-generated outputs, not produced, endorsed or verified by CourtListener or Oyez.
+**README must contain:** the pitch, the architecture diagram, 3-4 of the plots, a "what I measured" results table, a "known limits" list (no utterance-level data outside Supreme Court, since only Oyez carries speaker turns; small citation-eval sample; RLS gotcha), the rebuild command, the cost breakdown, and a sources and licences block: Oyez attribution (CC BY-NC 4.0, normalised and used as the source transcript), credit to Free Law Project / CourtListener, and a line stating that transcript text is Oyez's own published transcript, while the speaker resolution and citation extractions are this project's own AI-generated outputs, not produced, endorsed or verified by CourtListener or Oyez.
 
 **`docs/decisions.md`** is a short running log: each skill kept or skipped, each preview feature avoided, and each measured result that settled a question. It is the best interview artefact in the repo.
 
@@ -553,34 +510,30 @@ Day 2 is the heavy one, so its semantic model and report sit in the buffer day b
 - [ ] Azure: subscription in your new tenant with the Owner role (done); budget alerts are optional since the F2 capacity runs on Azure free credit (15 min)
 - [ ] Tenant admin: create and assign the F2 capacity (hearingevidencef2, UK West); find the settings that allow Fabric items and service-principal API access **\[VERIFY\]** (20 min)
 - [ ] AWS: bucket in eu-north-1, block public access, read-only IAM user (`he-raw-fabric-user`, policy `he-raw-fabric-read`), separate upload profile (`he-uploader`) (30 min)
-- [ ] GitHub: `nbstripout` pre-commit added to the existing public repo (uv, ruff, pytest and CI already in place) (10 min)
-- [ ] Tokens: CourtListener API token; Hugging Face token and accept the pyannote terms (10 min)
+- [ ] Tokens: CourtListener API token (10 min)
 - [ ] Licences: read CourtListener and Oyez terms and write them into `contracts/*.yaml` (30 min)
 - [ ] `fetch_and_stage.py`: the 4 Supreme Court hearings with Oyez transcripts (plus the appeals-court hearing later as an unscored addition), sha256 manifest, upload to S3 (45 min)
 
 **Gate:** `aws s3 ls --recursive` shows the 4 audio files plus docket, Oyez and manifest files, and every audio hash is in the manifest.
 
-### Day 1: Wed 14 Oct, ingest, quality gate, transcription
+### Day 1: Wed 14 Oct, ingest, quality gate
 
 - [ ] Workspace assigned to the F2 capacity (hearingevidencef2) at creation; 3 lakehouses; connect Git to the `fabric/` folder (45 min)
 - [ ] S3 shortcut `raw` with caching on; list it from a notebook (30 min)
 - [ ] `nb_01_bronze_ingest`: manifest, JSON to Delta, lineage columns, hash check, contract schema check (90 min)
 - [ ] `nb_02_audio_quality`: metrics, thresholds calibrated on the first 5 files, 3 planted bad files, quarantine (90 min)
-- [ ] `colab/transcribe.ipynb`: small.en and large-v3 plus diarization on passing files, upload to S3 (90 min; runs while you do the next items)
-- [ ] `nb_03_bronze_asr`: ingest ASR JSON, verify input audio hashes (45 min)
 - [ ] Evening: label 40 citation utterances and 40 name mentions, in 10-minute blocks (40 min total)
 - [ ] Three lines per Fabric item in `docs/decisions.md`; commit (20 min)
 
-**Gate:** bronze counts reconcile to the manifest; quarantine holds exactly the 3 planted files plus any real failures; ASR JSON exists for the 4 hearings from 2 runs; everything is committed.
+**Gate:** bronze counts reconcile to the manifest; quarantine holds exactly the 3 planted files plus any real failures; everything is committed.
 
-### Day 2: Thu 15 Oct, silver, evaluation, NLP, gold, gates (about 7 h, plus optional plots)
+### Day 2: Thu 15 Oct, silver, NLP, gold, gates (about 7 h, plus optional plots)
 
-- [ ] `nb_04_silver_transcripts`: typed segments, Oyez turns, `slv_hearing` (75 min)
-- [ ] `nb_05_eval`: WER, approximate DER, slices, `fact_asr_eval` (90 min)
-- [ ] `nb_06_nlp`: speaker resolution, name matching, eyecite, LLM extraction, scoring against labels (120 min)
-- [ ] `nb_07_gold_build`: dimensions with -1 members, facts, evidence index, `gold_eval_extraction` (90 min)
+- [ ] `nb_03_silver_transcripts`: typed Oyez turns, `slv_hearing`, `slv_ref_turn`, `slv_utterance` (90 min)
+- [ ] `nb_04_nlp`: speaker resolution, name matching, eyecite, LLM extraction, scoring against labels (120 min)
+- [ ] `nb_05_gold_build`: dimensions with -1 members, facts, evidence index, `gold_eval_extraction` (90 min)
 - [ ] `dq.py` checks, `dq_results`, and pipeline `pl_hearing_evidence` with Lookup, If condition and Fail activity (60 min)
-- [ ] `nb_08_plots`: plots 1-5 saved to `docs/img/` (45 min, if time remains)
+- [ ] `nb_06_plots`: plots 1-5 saved to `docs/img/` (45 min, if time remains)
 
 **Gate:** gold tables are non-empty and reconcile with silver; an injected empty batch turns the pipeline red.
 
@@ -599,7 +552,6 @@ Day 2 is the heavy one, so its semantic model and report sit in the buffer day b
 
 - [ ] Semantic model with relationships, measures and the 2 RLS roles; report pages 1-3 (2 h)
 - [ ] Deployment pipeline, dev to test (45 min)
-- [ ] Denoise experiment, only if the 9.4 rule triggered (60 min)
 - [ ] Final pass on `docs/decisions.md` and `docs/limitations.md`; write the 5-line project summary for your CV (30 min)
 
 **Gate:** "View as GeneralCounsel" hides restricted cases; CI is green; repo is public.
@@ -615,7 +567,6 @@ Expected spend is about £0 to £2 (S3 and LLM calls) against your £20 ceiling.
 | S3 storage and requests | under £1 | About 1 GB of audio |
 | S3 egress through the shortcut | under £1 | About £0.07 per GB; shortcut caching reduces repeats |
 | OneLake storage | under £1 | Same order as S3 |
-| Colab GPU | £0 | Free tier; sessions are time-limited, so process in batches |
 | LLM API for extraction | under £1 | 100 short utterances, a few retries |
 | GitHub | £0 | Public repo, free Actions minutes |
 
@@ -623,9 +574,8 @@ Expected spend is about £0 to £2 (S3 and LLM calls) against your £20 ceiling.
 
 | Risk | Likelihood | Fallback |
 | --- | --- | --- |
-| Oyez terms forbid reuse, or no stable access | Medium | Use CourtListener transcripts as a weak reference only; relabel the evaluation as "agreement"; shrink scored set to what is allowed |
+| Oyez terms forbid reuse, or no stable access | Medium | Shrink the hearing set to what Oyez access allows; the ASR extension (section 22) is the fallback path to a transcript source |
 | CourtListener rate limits or audio missing for a hearing | Medium | Proceed with the hearings that are available; the design does not depend on the exact count |
-| pyannote gating or token trouble | Medium | Drop DER and report WER and speaker-count error only; note it in limitations |
 | S3 shortcut auth or URL error | Medium | Check bucket region, IAM actions and URL form first. Last resort: upload to OneLake Files and record the loss of the cross-cloud step |
 | Fabric provider lacks a resource | High | Terraform for capacity and workspace, REST script for the rest, log the gap |
 | Direct Lake or RLS behaves unexpectedly **\[VERIFY\]** | Low-Medium | Fall back to import mode for the semantic model; RLS rules stay the same |
@@ -640,16 +590,14 @@ Your rule: include something only if it has a clear purpose in the data flow. Ve
 | --- | --- | --- |
 | Python, PySpark, SQL | In | All transforms, tests and queries |
 | librosa | In | Quality gate metrics |
-| faster-whisper (PyTorch underneath) | In | Transcription; PyTorch is not used directly |
-| pyannote | In | Diarization, plus `pyannote.metrics` for DER |
-| jiwer | In | WER computation |
 | eyecite | In | Citation baseline, so the LLM has something to beat |
 | LLM extraction plus pydantic | In | Measured against eyecite on hand labels |
 | rapidfuzz | In | Name matching against a small closed candidate set |
 | AWS S3 and IAM | In | The cross-cloud source and least-privilege read access |
 | Terraform | In | Destroy and rebuild |
 | GitHub Actions | In | CI tests and Terraform validation. Azure DevOps is skipped because the repo is on GitHub; both work with Fabric Git |
-| Denoising, source separation | Conditional | Only under the decision rule in 9.4 |
+| faster-whisper, pyannote, jiwer | Out | Transcript text and speaker turns come from Oyez; no ASR or WER/DER measurement in this scope. Possible later addition (section 22) |
+| Denoising, source separation | Out | No audio-model step in this scope to justify them |
 | TCN, VAE | Out | No problem in this flow needs them; adding them would be for show |
 | Fine-tuning a pretrained model | Out | No training data and no measured need |
 | Embeddings and vector search | Out | The evidence index is searched by case and time, not semantic similarity. Add only with a retrieval question to evaluate |
@@ -658,11 +606,11 @@ Your rule: include something only if it has a clear purpose in the data flow. Ve
 | Airflow | Out | Fabric pipelines orchestrate |
 | Kubernetes | Out | No services to run |
 | Databricks | Out | Fabric Spark does the same job; Delta and PySpark skills transfer one-to-one, which is a good interview point |
-| MLflow | Out | `fact_asr_eval` already tracks runs |
+| MLflow | Out | No model-comparison step in this scope; nothing to track |
 | Great Expectations, Soda, dbt | Out | Custom checks suffice at this size |
-| GCP | Out except Colab | Used only as a free GPU |
+| GCP | Out | Not used in this scope |
 
-**Cut order if time runs short:** (1) deployment pipeline, (2) citation lookup guard, (3) email alert on failure, (4) hand labels down from 40 to 20 each, (5) the Git-in-Terraform stretch, (6) the second ASR model. **Never cut:** S3 shortcut, quality gate with quarantine, WER evaluation, star schema, zero-row failure test, RLS demo, rebuild test. Change this order now if you disagree, not on Day 2.
+**Cut order if time runs short:** (1) deployment pipeline, (2) citation lookup guard, (3) email alert on failure, (4) hand labels down from 40 to 20 each, (5) the Git-in-Terraform stretch. **Never cut:** S3 shortcut, quality gate with quarantine, star schema, zero-row failure test, RLS demo, rebuild test. Change this order now if you disagree, not on Day 2.
 
 ## 20. Interview talking points
 
@@ -670,15 +618,14 @@ Each line is a question you should expect and the short answer this project lets
 
 | Question | Your answer, in one breath |
 | --- | --- |
-| Why a shortcut instead of copying S3 into OneLake? | One source of truth, no sync job, and I cached it to control egress. Trade-off: S3 shortcuts are read-only, so derived data is written back to S3 |
+| Why a shortcut instead of copying S3 into OneLake? | One source of truth, no sync job, and I cached it to control egress. Trade-off: S3 shortcuts are read-only, so new raw data is uploaded to S3 directly, not written back through Fabric |
 | Why three lakehouses, not one? | Visible layer boundaries and separate access per layer. At scale I would revisit schemas |
 | Why no warehouse? | The lakehouse and SQL endpoint cover the read pattern. I would add a warehouse for multi-table T-SQL transactions |
-| How did you measure transcription quality? | WER and approximate DER against Oyez on N hearings, sliced by quality and speaker role. Weak reference for the rest, labelled as such |
-| Did you fine-tune or denoise? | No. I set a decision rule first, measured, and it did not trigger. (Change this line if it did) |
+| Where does your transcript text come from? | Oyez's own published, speaker-labelled transcript, used as-is and credited under CC BY-NC 4.0. My own measured work sits on top of it: speaker resolution and citation extraction, scored against hand labels |
 | How do you catch a pipeline that succeeds with zero rows? | Row-count floors, volume against last run, per-layer reconciliation, and a heartbeat row, all gating the pipeline |
 | How does row-level security work here, and where does it fail? | Roles on the semantic model filter restricted cases. It does not apply to workspace members with write access, so consumers must be viewers |
 | What is your data-product story? | Owner, contract, SLA, input and output ports, documented limits. No mesh, because I had no coordination problem |
-| What changes at 10,000 hearings? | Incremental manifest-driven loads already exist; ASR moves to a batch GPU service; audio QC moves to a Spark UDF; evidence search needs an index; add monitoring and alerting |
+| What changes at 10,000 hearings? | Incremental manifest-driven loads already exist; audio QC moves to a Spark UDF; evidence search needs an index; add monitoring and alerting |
 | How does this connect to your Thomson Reuters work? | Same mindset as the agent-evaluation pipelines: define ground truth, measure, slice, report honestly, and model the results as a star schema |
 
 **A story that works:** open with the measured result you are proudest of, not with the architecture. Architecture answers follow when they ask.
@@ -697,7 +644,7 @@ Terms in the order you will meet them.
 | Files vs Tables | Files hold any raw format; Tables hold Delta tables | Shortcut under Files; Delta under Tables |
 | Shortcut | A pointer making external or other-lakehouse data appear in a lakehouse without copying | `raw` to S3 |
 | Delta table | Parquet files plus a transaction log; gives ACID, MERGE and time travel | Every layer's tables |
-| Notebook | Code in cells that runs on Spark in your capacity | `nb_01` to `nb_08` |
+| Notebook | Code in cells that runs on Spark in your capacity | `nb_01` to `nb_06` |
 | Starter pool | The default fast-starting Spark compute | All notebooks |
 | Data pipeline | Orchestration of activities (notebooks, lookups, conditions) | `pl_hearing_evidence` |
 | SQL analytics endpoint | Read-only T-SQL view over a lakehouse's Delta tables | DQ queries, evidence search, smoke test |
@@ -711,3 +658,13 @@ Terms in the order you will meet them.
 | Monitoring hub | Run history and status for notebooks and pipelines | Debugging, health evidence |
 
 **Learning rule:** after each Day 1 and Day 2 session, write 3 lines in `docs/decisions.md`: what the item is, why you used it, what surprised you. That is the encoding practice you asked for, and it doubles as interview material.
+
+## 22. Extensions
+
+Possible later additions, each with a clear purpose test to pass before it is built. None of these are in the build path above.
+
+| Extension | What it would add | Purpose test to pass |
+| --- | --- | --- |
+| ASR evaluation | `faster-whisper` (small.en vs large-v3) plus `pyannote` diarization on a free Colab GPU, transcribing the first 15 minutes of each hearing; WER via `jiwer` and approximate DER via `pyannote.metrics`, scored against the Oyez reference turns; `dim_asr_run` and `fact_asr_eval` added to gold; report tiles for WER by model and WER against audio quality | Only build it to answer a stated question (for example, "how much does transcription quality degrade with audio quality?"), and only keep it if a measured result says something the Oyez-only build does not already show |
+| Denoising or fine-tuning | A denoise step or a fine-tuned model, triggered only by a measured WER gap from the ASR evaluation extension | Needs the ASR evaluation extension first; triggers only if WER in the worst quality quartile is at least 5 points above the best, and correlates with measured noise |
+| Embeddings and vector search | Semantic search over the evidence index | Needs a retrieval question the current case-and-time search cannot answer |
