@@ -21,6 +21,70 @@ Template:
 
 ---
 
+## 2026-10-23: Silver promotes only sha256-verified hearings, rebuilds idempotently
+
+**Decision:** Silver promotes only hearings whose MP3 `sha256` check passed in the
+latest bronze verification run. Silver tables use fully qualified names
+(`lh_silver.dbo.*`) and rebuild idempotently by overwrite.
+
+**Why:** `sha256` is the check that matches all four served MP3s (see the
+`sha1`/`sha256` decision below), so it's the correct gate for whether a
+hearing's audio artefact is trustworthy enough to promote. Fully qualified
+table names and overwrite rebuilds make the Silver notebook safe to rerun
+without first deleting output or depending on which lakehouse is the current
+default context.
+
+**Alternatives considered:** Gating promotion on `sha1` as well as `sha256`;
+rejected since `sha1` doesn't match any of the four served MP3s. Appending to
+Silver tables on each run instead of overwriting; rejected because overwrite
+from source gives a deterministic, idempotent rebuild.
+
+**Result:** _pending._
+
+---
+
+## 2026-10-23: Bronze verification checks carry a severity, error or warn
+
+**Decision:** Bronze verification checks carry a severity, `error` or `warn`.
+A verification run fails only on `error`-level FAILs. The `sha1` check is
+`warn`. Rows written before severity existed carry `NULL` for it; a backfill
+fills them in by `check_id`.
+
+**Why:** CourtListener's served `sha1` doesn't match any of the four served
+MP3s, while `sha256` matches all four — the `sha1` on the docket describes a
+different artefact (hypothesis: the original court file; unverified). A
+mismatch on a field describing a different artefact isn't a sign the served
+MP3 is wrong, so it shouldn't fail the run.
+
+**Alternatives considered:** Dropping the `sha1` check entirely; rejected
+because keeping it at `warn` keeps the discrepancy visible instead of hiding
+it.
+
+**Result:** _pending — the hypothesis that CourtListener's `sha1` describes
+the original court file is unverified._
+
+---
+
+## 2026-10-23: Fabric Git integration tenant settings enable cross-region GitHub sync
+
+**Decision:** The Fabric tenant has "sync with Git repositories", "sync with
+GitHub repositories", and "export items to Git repositories in other
+geographical locations" enabled. Only notebook code and other item
+definitions commit to Git; no data moves this way.
+
+**Why:** GitHub hosts repositories outside the capacity region (UK West), so
+committing workspace items moves their definitions out of region. In a
+regulated firm this is a data-residency decision that belongs to the tenant
+admin.
+
+**Alternatives considered:** Leaving cross-geography export off and keeping
+Git sync limited to repositories inside the capacity's region; not available
+as a separate tenant setting from the general Git/GitHub sync toggles.
+
+**Result:** _pending._
+
+---
+
 ## 2026-10-22: Contract `required` lists name only what downstream code depends on
 
 **Decision:** Dropped five fields from `required` in `courtlistener_audio.yaml`
