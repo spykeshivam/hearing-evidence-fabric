@@ -67,6 +67,7 @@ When I ask you to explain a topic:
 
 ### 4. Workflow (SDLC)
 - Work on a branch and worktree per task, open a pull request, merge only when CI is green. Reference the issue in commits.
+- Never delete fabric-sync (local or remote), even after its PR merges; after a merge, keep it and fast-forward it to main.
 - Whenever a task has become big enough to push it, remind me than I need to push. We don't want to pile up lots of code in a single PR.
 - Write or update tests with every change to code in src/. Run `uv run ruff check .`, `uv run ruff format .` and `uv run pytest` before committing.
 - Small commits with clear messages. Never commit secrets, audio, Oyez files or data/.
