@@ -8,8 +8,8 @@
 # META   },
 # META   "dependencies": {
 # META     "lakehouse": {
-# META       "default_lakehouse": "830a3ca1-2f11-4d7d-aac0-bdd1cf825f39",
-# META       "default_lakehouse_name": "lh_silver",
+# META       "default_lakehouse": "c49ecf7c-5905-4428-bc8b-7f170bae4451",
+# META       "default_lakehouse_name": "lh_bronze",
 # META       "default_lakehouse_workspace_id": "846c8817-872c-4a45-908c-5a04fc8d7ecd",
 # META       "known_lakehouses": [
 # META         {
@@ -21,6 +21,19 @@
 # META       ]
 # META     }
 # META   }
+# META }
+
+# CELL ********************
+
+# Session setup: install libraries first, because %pip restarts the Python process
+# and would wipe any variables defined before it.
+%pip install mutagen -q
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
 # META }
 
 # CELL ********************
@@ -137,34 +150,52 @@ display(spark.table(f"{SLV}.slv_turn").groupBy("docket").count())
 slv_hearing, one row per oral-argument hearing.
 
 Grain: one hearing (docket). Conforms two independent sources on the docket number:
-CourtListener gives the audio (duration, MP3 location); Oyez gives the case (name, term, parties).
-This is the first point where the two sources meet, so mismatches between them surface here.
+CourtListener gives the audio and its reported metadata; Oyez gives the case.
+Audio duration is MEASURED from the MP3 itself: CourtListener's reported duration was
+found to understate 2 of 4 hearings by ~22 minutes, so the provider's value is kept only
+as a monitored signal, never as the source of truth.
 """
-# get_json_object pulls single scalar fields straight from the JSON text by path;
-# lighter than a full schema when only a few top-level values are needed.
+import mutagen
+
+AUDIO_ROOT = "/lakehouse/default/Files/he-raw/"   # shortcut mounted as a local path (default lakehouse = lh_bronze)
+
+
+def measure_duration(s3_key):
+    """Read the MP3's frames/headers and return its real playing time in seconds."""
+    return round(mutagen.File(AUDIO_ROOT + s3_key).info.length, 1)
+
+
+# Measure only verified audio (4 small rows, so a driver-side loop is fine).
+# Window keeps the newest manifest row per file, the same rule as everywhere else.
+w_m = Window.partitionBy("s3_key").orderBy(F.col("batch_id").desc())
+audio_rows = (spark.table(f"{BRZ}.brz_object_manifest")
+              .withColumn("_rn", F.row_number().over(w_m)).filter("_rn = 1 AND kind = 'audio'")
+              .withColumn("docket", F.regexp_extract("s3_key", r"(\d{2}-\d+)", 1))
+              .join(verified, "docket").select("docket", "s3_key").collect())
+measured = spark.createDataFrame(
+    [(r.docket, measure_duration(r.s3_key)) for r in audio_rows],
+    "docket string, measured_duration_s double")
+
+# get_json_object pulls single scalar fields straight from JSON text by path.
 cl_audio = (latest("brz_audio_meta").select(
     "docket",
-    F.get_json_object("payload", "$.case_name").alias("cl_case_name"),
-    F.get_json_object("payload", "$.duration").cast("int").alias("audio_duration_s"),
-    # Public MP3 URL: the link that lets a search result jump to the exact second in the audio
+    F.get_json_object("payload", "$.duration").cast("int").alias("reported_duration_s"),  # provider's claim
     F.concat(F.lit("https://storage.courtlistener.com/"),
-             F.get_json_object("payload", "$.local_path_mp3")).alias("mp3_url"),
+             F.get_json_object("payload", "$.local_path_mp3")).alias("mp3_url"),  # deep-link target
     F.col("sha256").alias("_audio_meta_sha256")))
 
 oyez_case = (latest("brz_oyez_case").select(
     "docket",
     F.get_json_object("payload", "$.name").alias("case_name"),
     F.get_json_object("payload", "$.term").alias("term"),
-    F.get_json_object("payload", "$.first_party").alias("first_party"),     # usually the petitioner
-    F.get_json_object("payload", "$.second_party").alias("second_party"),   # usually the respondent
-    "licence_id"))                                                          # licence travels with the data
+    F.get_json_object("payload", "$.first_party").alias("first_party"),
+    F.get_json_object("payload", "$.second_party").alias("second_party"),
+    "licence_id"))                                            # licence travels with the data
 
-slv_hearing = (oyez_case
-    .join(cl_audio, "docket", "inner")      # both sources required: a hearing needs a case and its audio
-    .join(verified, "docket")               # same promotion gate as slv_turn
-    .withColumn("_processed_at", F.current_timestamp()))
-
-slv_hearing.write.mode("overwrite").format("delta").saveAsTable(f"{SLV}.slv_hearing")
+slv_hearing = (oyez_case.join(cl_audio, "docket").join(measured, "docket")   # inner joins = gate holds
+               .withColumn("_processed_at", F.current_timestamp()))
+slv_hearing.write.mode("overwrite").option("overwriteSchema", "true") \
+    .format("delta").saveAsTable(f"{SLV}.slv_hearing")
 display(spark.table(f"{SLV}.slv_hearing"))
 
 # METADATA ********************
@@ -177,12 +208,80 @@ display(spark.table(f"{SLV}.slv_hearing"))
 # CELL ********************
 
 """
-silver data-quality checks.
+slv_case_participant, one row per person per case.
 
-Checks prove the parsed transcript is internally valid and agrees with the audio from a
-second, independent source. Error-level failures stop the run (fail loudly), so an invalid
-silver build is never consumed downstream. Results go to a silver check log; the bronze
-log stays scoped to bronze so its own gate logic is not disturbed.
+Grain: (docket, speaker_id). Resolves every person who can speak in a hearing to a role
+(justice or advocate) and, for advocates, to the side they argued for. The join key is
+Oyez's stable person identifier, the same id carried by every transcript turn, so speaker
+resolution here is an exact key match, not fuzzy name matching.
+"""
+# Consumer-side schema: only the fields this layer depends on (unlisted fields are ignored).
+person_t = StructType([StructField("name", StringType()), StructField("identifier", StringType())])
+case_t = StructType([
+    StructField("advocates", ArrayType(StructType([
+        StructField("advocate", person_t),
+        StructField("advocate_description", StringType())]))),   # e.g. "for the petitioners"
+    StructField("heard_by", ArrayType(StructType([
+        StructField("members", ArrayType(person_t))])))])           # the bench that heard the case
+
+
+cases = latest("brz_oyez_case").join(verified, "docket").withColumn("j", F.from_json("payload", case_t))
+
+# Advocates: the side is derived from free text by keyword rules. Amici "supporting" a party
+# are counted on that party's side and flagged, so speaking time by side stays meaningful.
+desc = F.lower(F.col("a.advocate_description"))
+advocates = (cases.select("docket", F.explode("j.advocates").alias("a"))
+    .select("docket",
+            F.col("a.advocate.identifier").alias("speaker_id"),
+            F.col("a.advocate.name").alias("speaker_name"),
+            F.lit("advocate").alias("role"),
+            F.when(desc.contains("petitioner"), "petitioner")
+             .when(desc.contains("respondent"), "respondent")
+             .when(desc.contains("amicus"), "amicus_other")   # amicus supporting neither party (e.g. vacatur)
+             .otherwise("unknown").alias("side"),
+            desc.contains("amicus").alias("is_amicus"),
+            F.col("a.advocate_description").alias("role_description")))   # kept for audit
+
+justices = (cases.select("docket", F.explode("j.heard_by").alias("h"))
+    .select("docket", F.explode("h.members").alias("m"))
+    .select("docket",
+            F.col("m.identifier").alias("speaker_id"),
+            F.col("m.name").alias("speaker_name"),
+            F.lit("justice").alias("role"),
+            F.lit("bench").alias("side"),
+            F.lit(False).alias("is_amicus"),
+            F.lit(None).cast("string").alias("role_description")))
+
+slv_case_participant = (advocates.unionByName(justices)
+    .dropDuplicates(["docket", "speaker_id"])          # grain guard: one row per person per case
+    .withColumn("_processed_at", F.current_timestamp()))
+slv_case_participant.write.mode("overwrite").option("overwriteSchema", "true") \
+    .format("delta").saveAsTable(f"{SLV}.slv_case_participant")
+
+# Resolution rate: share of turns whose speaker is a known participant of that case.
+turns = spark.table(f"{SLV}.slv_turn")
+resolved = turns.join(slv_case_participant.select("docket", "speaker_id"), ["docket", "speaker_id"], "left_semi")
+display(turns.groupBy("docket").count().withColumnRenamed("count", "turns")
+        .join(resolved.groupBy("docket").count().withColumnRenamed("count", "resolved"), "docket")
+        .withColumn("resolution_rate", F.round(F.col("resolved") / F.col("turns"), 3)))
+display(slv_case_participant.filter("role = 'advocate'").select("docket", "speaker_name", "side", "is_amicus", "role_description"))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+"""
+nb_02_silver | Checks cell: silver data-quality checks.
+
+Proves the parsed transcript is internally valid, fits the measured audio, and that every
+speaker resolves to a known participant of the case. Error-level failures stop the run
+(fail loudly), so an invalid silver build is never consumed downstream. Results go to the
+silver check log; each layer keeps its own log.
 """
 import uuid
 from datetime import datetime, timezone
@@ -200,21 +299,41 @@ stats = (spark.table(f"{SLV}.slv_turn").groupBy("docket").agg(
             F.sum(F.when(F.col("stop_s") < F.col("start_s"), 1).otherwise(0)).alias("bad_order"),
             F.max("stop_s").alias("last_stop_s"),
             F.avg(F.col("speaker_name").isNull().cast("int")).alias("null_speaker_rate"))
-         .join(spark.table(f"{SLV}.slv_hearing").select("docket", "audio_duration_s"), "docket"))
+         .join(spark.table(f"{SLV}.slv_hearing")
+               .select("docket", "measured_duration_s", "reported_duration_s"), "docket"))
 
 for r in stats.collect():
     d = r.docket
     record(f"turns_nonempty_{d}", "slv_turn", r.turns > 0, r.turns, ">0")
     # Validity: a turn cannot end before it starts
     record(f"turn_order_{d}", "slv_turn", r.bad_order == 0, r.bad_order, 0)
-    # Cross-source agreement: the transcript's last timestamp should sit near the end of the
-    # audio. This also guards the download step: a truncated MP3 would be clearly shorter.
+    # Integrity (blocking): the transcript timeline must fit the audio we actually hold
     record(f"duration_match_{d}", "slv_hearing",
-           abs(r.audio_duration_s - r.last_stop_s) <= 30,
-           round(r.last_stop_s, 1), f"{r.audio_duration_s} ±30s")
+           abs(r.measured_duration_s - r.last_stop_s) <= 30,
+           round(r.last_stop_s, 1), f"{r.measured_duration_s} ±30s")
+    # Source metadata quality (monitored): the provider's reported duration vs measured
+    record(f"reported_duration_{d}", "slv_hearing",
+           abs(r.measured_duration_s - r.reported_duration_s) <= 30,
+           r.reported_duration_s, f"{r.measured_duration_s} ±30s", severity="warn")
     # Schema-drift sentinel: if Oyez renames the speaker field, from_json yields NULLs here
     record(f"speaker_null_rate_{d}", "slv_turn", r.null_speaker_rate < 0.05,
            round(r.null_speaker_rate, 3), "<0.05", severity="warn")
+
+# NEW: entity-resolution quality. Every turn's speaker should be a known participant of its case.
+part = spark.table(f"{SLV}.slv_case_participant")
+turns = spark.table(f"{SLV}.slv_turn")
+res = (turns.groupBy("docket").agg(F.count("*").alias("turns"))
+       .join(turns.join(part, ["docket", "speaker_id"], "left_semi")   # left_semi = turns WITH a match
+             .groupBy("docket").agg(F.count("*").alias("resolved")), "docket", "left")
+       .fillna(0, ["resolved"]).collect())
+for r in res:
+    record(f"speaker_resolution_{r.docket}", "slv_case_participant",
+           r.resolved / r.turns >= 0.95, round(r.resolved / r.turns, 3), ">=0.95")
+
+# NEW: side attribution. An advocate with unrecognisable side text breaks speaking time by side.
+unknown_side = part.filter("role = 'advocate' AND side = 'unknown'").count()
+record("advocate_side_known", "slv_case_participant", unknown_side == 0, unknown_side, 0,
+       severity="warn")
 
 schema = ("check_id string, layer string, table_name string, status string, observed string, "
           "expected string, severity string, run_id string, checked_at timestamp")
