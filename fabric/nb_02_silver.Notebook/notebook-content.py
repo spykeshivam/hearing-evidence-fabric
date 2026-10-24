@@ -354,6 +354,28 @@ if failed:
 
 # CELL ********************
 
+"""
+preview every silver table.
+
+Runs only after the checks cell passes (a failed check raises before this point), so what
+is shown here is exactly what gold is allowed to consume.
+"""
+
+for t in ["slv_hearing", "slv_case_participant", "slv_turn", "dq_results"]:
+    df = spark.table(f"{SLV}.{t}")
+    print(f"=== {SLV}.{t}: {df.count()} rows | grain/columns: {df.columns}")
+    # Lineage columns are hidden in the preview; they stay in the table
+    display(df.drop(*[c for c in df.columns if c.startswith("_")]).limit(10))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 
 # METADATA ********************
 

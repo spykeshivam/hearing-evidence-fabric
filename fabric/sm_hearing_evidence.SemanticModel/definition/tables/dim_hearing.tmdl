@@ -1,0 +1,76 @@
+table dim_hearing
+	lineageTag: 96477bdc-7920-48c0-b5d5-0731077f2fee
+	sourceLineageTag: [dbo].[dim_hearing]
+
+	column hearing_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 252e0152-4a24-45c0-bffa-2d1015fb5fe6
+		sourceLineageTag: hearing_key
+		summarizeBy: none
+		sourceColumn: hearing_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column case_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: a6af0489-384f-428a-a430-c27334352d67
+		sourceLineageTag: case_key
+		summarizeBy: none
+		sourceColumn: case_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column docket
+		dataType: string
+		lineageTag: 56bfaa4d-49e6-456d-ad1e-fa988e891c4f
+		sourceLineageTag: docket
+		summarizeBy: none
+		sourceColumn: docket
+
+		annotation SummarizationSetBy = Automatic
+
+	column mp3_url
+		dataType: string
+		lineageTag: d28e19b6-07e9-4e57-82f8-61bb31e5ac3a
+		sourceLineageTag: mp3_url
+		summarizeBy: none
+		sourceColumn: mp3_url
+
+		annotation SummarizationSetBy = Automatic
+
+	column measured_duration_s
+		dataType: double
+		lineageTag: 5d80af8f-bf20-4792-b2dd-ea6d49556de6
+		sourceLineageTag: measured_duration_s
+		summarizeBy: none
+		sourceColumn: measured_duration_s
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column reported_duration_s
+		dataType: int64
+		formatString: 0
+		lineageTag: 91abb382-b7d1-49a4-9b48-79044c792b66
+		sourceLineageTag: reported_duration_s
+		summarizeBy: none
+		sourceColumn: reported_duration_s
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_hearing = entity
+		mode: directLake
+		source
+			entityName: dim_hearing
+			schemaName: dbo
+			expressionSource: 'DirectLake - lh_gold'
+

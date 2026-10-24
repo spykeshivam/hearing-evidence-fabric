@@ -1,0 +1,139 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.14.0/schema.json",
+  "name": "7c768cea7777ae84a147",
+  "position": {
+    "x": 25.603448275862068,
+    "y": 121.03448275862068,
+    "z": 0,
+    "height": 849.56896551724139,
+    "width": 1235.9482758620688,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "clusteredBarChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_case"
+                    }
+                  },
+                  "Property": "case_name"
+                }
+              },
+              "queryRef": "dim_case.case_name",
+              "nativeQueryRef": "case_name",
+              "active": true
+            }
+          ]
+        },
+        "Series": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_utterance"
+                    }
+                  },
+                  "Property": "side"
+                }
+              },
+              "queryRef": "fact_utterance.side",
+              "nativeQueryRef": "side"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_utterance"
+                    }
+                  },
+                  "Property": "Speaking Minutes"
+                }
+              },
+              "queryRef": "fact_utterance.Speaking Minutes",
+              "nativeQueryRef": "Speaking Minutes"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "fact_utterance"
+                  }
+                },
+                "Property": "Speaking Minutes"
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "a236f9fb0d9cfe37b8e8",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "dim_case"
+              }
+            },
+            "Property": "case_name"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "aff0c13d4fbecc6541f8",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "fact_utterance"
+              }
+            },
+            "Property": "Speaking Minutes"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "b25a022a9c833e7f150f",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "fact_utterance"
+              }
+            },
+            "Property": "side"
+          }
+        },
+        "type": "Categorical"
+      }
+    ]
+  }
+}
