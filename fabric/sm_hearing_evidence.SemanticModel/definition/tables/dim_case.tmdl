@@ -1,0 +1,88 @@
+table dim_case
+	lineageTag: 41feb798-d675-43d7-93d4-9f0010f99033
+	sourceLineageTag: [dbo].[dim_case]
+
+	column case_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 0ed4032f-5cbc-44d1-9461-74a0b229d6a2
+		sourceLineageTag: case_key
+		summarizeBy: none
+		sourceColumn: case_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column docket
+		dataType: string
+		lineageTag: d956e698-ca28-4148-b02c-c9547a49cde6
+		sourceLineageTag: docket
+		summarizeBy: none
+		sourceColumn: docket
+
+		annotation SummarizationSetBy = Automatic
+
+	column case_name
+		dataType: string
+		lineageTag: 2c25a5d8-9aa4-470d-85e6-da7d0fe958e2
+		sourceLineageTag: case_name
+		summarizeBy: none
+		sourceColumn: case_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column term
+		dataType: string
+		lineageTag: 377c14f5-dd0f-49e4-a89e-d4f0df5681ac
+		sourceLineageTag: term
+		summarizeBy: none
+		sourceColumn: term
+
+		annotation SummarizationSetBy = Automatic
+
+	column first_party
+		dataType: string
+		lineageTag: 1414af73-3f0f-425c-adc3-3d66028c10ed
+		sourceLineageTag: first_party
+		summarizeBy: none
+		sourceColumn: first_party
+
+		annotation SummarizationSetBy = Automatic
+
+	column second_party
+		dataType: string
+		lineageTag: 3705608a-7f44-4f3b-b45e-c78c0f579bdd
+		sourceLineageTag: second_party
+		summarizeBy: none
+		sourceColumn: second_party
+
+		annotation SummarizationSetBy = Automatic
+
+	column licence_id
+		dataType: string
+		lineageTag: 86675c71-2b6e-4f25-b385-5e229b566134
+		sourceLineageTag: licence_id
+		summarizeBy: none
+		sourceColumn: licence_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column is_restricted
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 7263f13e-84ec-4a09-9563-55c5933765cf
+		sourceLineageTag: is_restricted
+		summarizeBy: none
+		sourceColumn: is_restricted
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_case = entity
+		mode: directLake
+		source
+			entityName: dim_case
+			schemaName: dbo
+			expressionSource: 'DirectLake - lh_gold'
+

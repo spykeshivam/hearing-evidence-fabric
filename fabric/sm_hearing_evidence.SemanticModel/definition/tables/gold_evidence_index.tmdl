@@ -1,0 +1,128 @@
+table gold_evidence_index
+	lineageTag: bd5613d1-0a38-4c40-84a9-883246a9037e
+	sourceLineageTag: [dbo].[gold_evidence_index]
+
+	column utterance_key
+		dataType: int64
+		formatString: 0
+		lineageTag: 82525d26-5776-4cae-91cc-dec91c67f24b
+		sourceLineageTag: utterance_key
+		summarizeBy: sum
+		sourceColumn: utterance_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column docket
+		dataType: string
+		lineageTag: a077f193-a5f8-4298-be2d-999ba598d756
+		sourceLineageTag: docket
+		summarizeBy: none
+		sourceColumn: docket
+
+		annotation SummarizationSetBy = Automatic
+
+	column case_name
+		dataType: string
+		lineageTag: 941f1368-e685-4e3b-864a-ff935a4906b5
+		sourceLineageTag: case_name
+		summarizeBy: none
+		sourceColumn: case_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column speaker_name
+		dataType: string
+		lineageTag: 2c970b2e-fe3c-44a6-8847-9a98370d6801
+		sourceLineageTag: speaker_name
+		summarizeBy: none
+		sourceColumn: speaker_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column role
+		dataType: string
+		lineageTag: 10a530c7-bb7f-415f-ba3a-4d603b365fdb
+		sourceLineageTag: role
+		summarizeBy: none
+		sourceColumn: role
+
+		annotation SummarizationSetBy = Automatic
+
+	column side
+		dataType: string
+		lineageTag: c5a50251-d7f4-4ca7-bd28-2026674fe8fa
+		sourceLineageTag: side
+		summarizeBy: none
+		sourceColumn: side
+
+		annotation SummarizationSetBy = Automatic
+
+	column start_s
+		dataType: double
+		lineageTag: 24bdbd27-2fa3-424f-be44-aee6cf58106e
+		sourceLineageTag: start_s
+		summarizeBy: sum
+		sourceColumn: start_s
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column stop_s
+		dataType: double
+		lineageTag: 6882ae03-a8c7-4c3d-a3d7-2008aa21780b
+		sourceLineageTag: stop_s
+		summarizeBy: sum
+		sourceColumn: stop_s
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column text
+		dataType: string
+		lineageTag: 9832704b-2308-4ee2-a6d6-ba9758715fd2
+		sourceLineageTag: text
+		summarizeBy: none
+		sourceColumn: text
+
+		annotation SummarizationSetBy = Automatic
+
+	column audio_link
+		dataType: string
+		lineageTag: bdc2c82d-7e51-4a3f-9b84-84cd02032efe
+		sourceLineageTag: audio_link
+		dataCategory: WebUrl
+		summarizeBy: none
+		sourceColumn: audio_link
+
+		changedProperty = DataCategory
+
+		annotation SummarizationSetBy = Automatic
+
+	column is_restricted
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: bfa41a40-e976-4600-8d8c-3603a6d10d7e
+		sourceLineageTag: is_restricted
+		summarizeBy: none
+		sourceColumn: is_restricted
+
+		annotation SummarizationSetBy = Automatic
+
+	column evidence_hash
+		dataType: string
+		lineageTag: 412734e7-fbd5-49a7-aad6-239db1979290
+		sourceLineageTag: evidence_hash
+		summarizeBy: none
+		sourceColumn: evidence_hash
+
+		annotation SummarizationSetBy = Automatic
+
+	partition gold_evidence_index = entity
+		mode: directLake
+		source
+			entityName: gold_evidence_index
+			schemaName: dbo
+			expressionSource: 'DirectLake - lh_gold'
+

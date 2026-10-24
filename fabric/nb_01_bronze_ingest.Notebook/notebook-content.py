@@ -264,6 +264,14 @@ if failed:
     raise AssertionError(f"Bronze verification failed: {failed}")
 
 
+# One-off backfill: rows written before the severity column existed get the severity
+# their check has today, so monitoring never reads NULL as "no failure".
+spark.sql("""
+  UPDATE lh_bronze.dbo.dq_results
+  SET severity = CASE WHEN check_id LIKE 'audio_sha1_%' THEN 'warn' ELSE 'error' END
+  WHERE severity IS NULL
+""")
+
 # METADATA ********************
 
 # META {
@@ -293,6 +301,23 @@ for t in ["brz_object_manifest", "brz_docket", "brz_audio_meta",
 import json
 p = spark.table("dbo.brz_oyez_case").first()["payload"]
 print(list(json.loads(p).keys()))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# One-off backfill: rows written before the severity column existed get the severity
+# their check has today, so monitoring never reads NULL as "no failure".
+spark.sql("""
+  UPDATE lh_bronze.dbo.dq_results
+  SET severity = CASE WHEN check_id LIKE 'audio_sha1_%' THEN 'warn' ELSE 'error' END
+  WHERE severity IS NULL
+""")
 
 # METADATA ********************
 

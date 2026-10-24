@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "sm_hearing_evidence"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "c69ed70c-1dff-9e33-4806-b84b98e6b272"
+  }
+}
