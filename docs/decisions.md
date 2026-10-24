@@ -21,6 +21,16 @@ Template:
 
 ---
 
+## 2026-10-24: `duration_match` must check measured MP3 duration, not CourtListener's `duration` field (issue [#19](https://github.com/spykeshivam/hearing-evidence-fabric/issues/19))
+
+**Decision:** The silver `duration_match` check blocks on the measured MP3 duration, not CourtListener's reported `duration`; the CourtListener value becomes a warn-level monitored check instead.
+
+**Why:** 21-1333 and 21-1496 failed `duration_match` by ~22 min. Measured duration (mutagen, sha256-verified files) agrees with the Oyez transcript's last stop to within 2s for all four hearings; CourtListener's `duration` field is wrong for these two, not the audio.
+
+**Result:** _pending — implement the measured-duration check in the silver notebook._
+
+---
+
 ## 2026-10-23: Silver promotes only sha256-verified hearings, rebuilds idempotently
 
 **Decision:** Silver promotes only hearings whose MP3 `sha256` check passed in the
