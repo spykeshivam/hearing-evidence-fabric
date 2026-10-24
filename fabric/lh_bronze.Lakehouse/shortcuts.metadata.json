@@ -1,0 +1,14 @@
+[
+  {
+    "name": "he-raw",
+    "path": "/Files",
+    "target": {
+      "type": "AmazonS3",
+      "amazonS3": {
+        "connectionId": "4591dd87-e192-4e04-8e58-39d085501163",
+        "location": "s3://he-raw",
+        "subpath": "/"
+      }
+    }
+  }
+]

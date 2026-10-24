@@ -23,6 +23,8 @@ packages = ["src/hearing_evidence"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Fabric-generated notebook sources; Spark globals (spark, display) are injected at runtime.
+extend-exclude = ["fabric"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
