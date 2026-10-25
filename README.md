@@ -17,6 +17,8 @@ Four US Supreme Court oral arguments: 23-970 NVIDIA, 23-980 Facebook, 21-1333 Go
 
 Raw Oyez files are not stored in this repository.
 
+Transcripts and case data © Oyez (oyez.org), licensed under CC BY-NC 4.0; parsed and restructured for this project, which is not endorsed by Oyez. Audio and docket data from CourtListener, a project of the Free Law Project.
+
 ## Architecture
 
 ```mermaid
