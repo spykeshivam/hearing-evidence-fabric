@@ -13,6 +13,12 @@ import sys
 
 
 def run(*args, cwd=None):
+    """Run a command and return its stdout, or "" on any failure.
+
+    A hook must never crash or hang the tool call it's guarding: any failure
+    here (git missing, timeout, bad cwd) is swallowed and treated as "" so
+    the caller just sees an empty/unknown result instead of an exception.
+    """
     try:
         return subprocess.run(
             args, capture_output=True, text=True, timeout=10, cwd=cwd
@@ -41,11 +47,17 @@ def leading_cd_target(cmd):
 
 
 def in_linked_worktree(cwd=None):
+    """True if cwd is inside a linked worktree rather than the main checkout.
+
+    git's own --git-dir answers this: for the main checkout it points at
+    `.git`, but for a linked worktree it points inside `.git/worktrees/<name>`.
+    """
     gitdir = run("git", "rev-parse", "--git-dir", cwd=cwd)
     return "worktrees" + ("\\" if "\\" in gitdir else "/") in gitdir
 
 
 def deny(reason):
+    """Print a PreToolUse response that blocks the tool call, showing `reason`."""
     print(
         json.dumps(
             {
@@ -60,6 +72,7 @@ def deny(reason):
 
 
 def nudge(message):
+    """Print a PreToolUse response that shows `message` without blocking the call."""
     print(json.dumps({"systemMessage": message}))
 
 
@@ -68,6 +81,14 @@ DELETE_BRANCH = re.compile(r"\bgit\s+branch\s+-[dD]\s+(\S+)|--delete[= ]+(\S+)")
 
 
 def main():
+    """Read the hook's JSON payload from stdin and enforce the worktree policy.
+
+    The harness calls this script before every Bash/PowerShell tool call and
+    passes the command it's about to run as JSON on stdin. If that command
+    creates a branch outside a linked worktree, deny it; if it deletes a
+    branch, nudge about cleaning up that branch's worktree. Anything else
+    (not a git repo, no matching command) is a silent no-op.
+    """
     try:
         payload = json.load(sys.stdin)
     except Exception:

@@ -37,6 +37,7 @@ Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Fa
 ## Conventions
 - Windows and PowerShell. Use uv (uv sync, uv run ruff check ., uv run ruff format ., uv run pytest). Use Invoke-WebRequest with -UseBasicParsing.
 - Logic goes in src/hearing_evidence/ (tested); scripts only call it. Heavy libraries (librosa, NLP) stay in optional extras. Commit small, branch and PR, keep CI green.
+- Every function gets a docstring: short for a simple one, longer for a complex one, stating what it does (see "Writing docs" for what goes in it).
 - Keep a running log in docs/decisions.md.
 
 ## Current state
