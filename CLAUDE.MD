@@ -52,6 +52,7 @@ Note: the project folder still sits inside OneDrive; move it to C:\dev.
 - Write in positive statements. Avoid contrast constructions such as "not X but Y", "this isn't X, it's Y" and "rather than X". State Y.
 - Keep docs short, and update the affected doc in the same commit as the change.
 - docs/decisions.md is the one place that records choices and their reasons. No need to mention history of the system anywhere else.
+- Same rule for docstrings and code comments: state what the file/function does and its workflow, not why it was created or what decision shaped it. If current behaviour comes from a logged decision, cite it as "check docs/decisions.md, <date> for more details" instead of retelling it.
 
 ### 2. Chat replies
 - Answer exactly what was asked. A simple question gets the simple answer, with no extras, no recap and no unrequested next steps.
