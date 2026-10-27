@@ -19,6 +19,7 @@ def run(*args, cwd=None):
     here (git missing, timeout, bad cwd) is swallowed and treated as "" so
     the caller just sees an empty/unknown result instead of an exception.
     """
+    # catches e.g. git not on PATH, the 10s timeout firing, or a bad cwd
     try:
         return subprocess.run(
             args, capture_output=True, text=True, timeout=10, cwd=cwd
@@ -76,7 +77,9 @@ def nudge(message):
     print(json.dumps({"systemMessage": message}))
 
 
+# matches: git checkout -b <name>  /  git switch -c|--create <name>
 CREATE_BRANCH = re.compile(r"\bgit\s+(checkout\s+-[bB]\b|switch\s+(-[cC]\b|--create\b))")
+# matches: git branch -d <name>  /  git branch --delete[=]<name>; group 1 or 2 holds <name>
 DELETE_BRANCH = re.compile(r"\bgit\s+branch\s+-[dD]\s+(\S+)|--delete[= ]+(\S+)")
 
 
@@ -100,6 +103,7 @@ def main():
     if run("git", "rev-parse", "--git-dir", cwd=cwd) == "":
         return  # not inside a git repo
 
+    # branch creation inside a worktree is fine; only the main checkout is blocked
     if CREATE_BRANCH.search(cmd) and not in_linked_worktree(cwd):
         deny(
             "This creates a branch directly in the main checkout, which changes "
@@ -113,10 +117,11 @@ def main():
 
     m = DELETE_BRANCH.search(cmd)
     if m:
-        branch = m.group(1) or m.group(2)
+        branch = m.group(1) or m.group(2)  # whichever alternative in the regex matched
         for line in run("git", "worktree", "list").splitlines():
+            # `git worktree list` prints one line per worktree as "<path> <sha> [<branch>]"
             if f"[{branch}]" in line:
-                path = line.split()[0]
+                path = line.split()[0]  # first column is the worktree's path
                 nudge(
                     f"Reminder: worktree at {path} is still registered for "
                     f"branch '{branch}'. Once it's merged, run: "
@@ -126,5 +131,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # a bug in this script must never block the tool call it's guarding
     with contextlib.suppress(Exception):
         main()
