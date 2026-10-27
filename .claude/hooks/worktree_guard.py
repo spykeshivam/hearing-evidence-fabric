@@ -1,9 +1,8 @@
 """PreToolUse guard (Bash|PowerShell): enforce "branch + worktree per task".
 
-See CLAUDE.MD's Workflow section. A session that creates a new branch
-directly in the main checkout changes the branch everyone sharing this
-working directory sees next - see docs/decisions.md, 2026-10-20, for the
-mix-up that happened here when that went unenforced.
+Blocks `git checkout -b` / `git switch -c` run outside a linked worktree,
+and nudges to remove a worktree once its branch is deleted. See CLAUDE.MD's
+Workflow section. Check docs/decisions.md, 2026-10-20 for more details.
 """
 
 import contextlib
