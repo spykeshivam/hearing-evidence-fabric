@@ -30,16 +30,14 @@ from pathlib import Path
 from hearing_evidence.hashing import sha256_of
 from hearing_evidence.s3_verify import verify_objects
 
-# "Staging area" is a data-engineering term: a holding folder where files wait,
-# already checked and fingerprinted, before they're loaded for real (here, before
-# they're synced to S3).
+# "Staging area" is a holding folder where files wait,
+# already checked and fingerprinted, before they're loaded in s3
 STAGE = Path("data/stage")
 CL_API = "https://www.courtlistener.com/api/rest/v4"
 CL_STORAGE = "https://storage.courtlistener.com/"
 OYEZ_API = "https://api.oyez.org"
 # Identifies us honestly to the APIs we call (both run by non-profits) instead of
-# posing as a browser. If something we do causes trouble, this lets them reach out
-# and ask us to fix it rather than just banning the traffic.
+# posing as a browser
 UA = "hearing-evidence-portfolio/0.1 (research project; github.com/spykeshivam)"
 CL_MIN_GAP = 15  # seconds between CourtListener API calls (limit is 5 per minute)
 LICENCE = {"courtlistener": "public-domain-court-records", "oyez": "CC-BY-NC-4.0"}

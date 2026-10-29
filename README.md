@@ -46,6 +46,9 @@ uv run python scripts/fetch_and_stage.py               # fetch, upload to S3 and
 uv run pytest                                          # validate staged files against the data contracts
 ```
 
+- `CL_TOKEN`: a free CourtListener API token. Sign in at [courtlistener.com](https://www.courtlistener.com/), then get your token from your [profile's API page](https://www.courtlistener.com/profile/api/).
+- `HE_BUCKET`: the name of your own private S3 bucket (region `eu-north-1`), with an IAM profile named `he-uploader` configured in the AWS CLI (`aws configure --profile he-uploader`) that has write access to it.
+
 The script calls CourtListener's rate-limited API (5 calls a minute, 125 a day) and paces itself.
 
 Data is staged in S3 to demonstrate reading external storage in place through a OneLake shortcut. The same files can be uploaded straight into the lakehouse `Files` area instead; the notebooks only need the path changed.
