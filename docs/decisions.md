@@ -21,6 +21,39 @@ Template:
 
 ---
 
+## 2026-10-29: Contracts ride the S3 -> OneLake sync; bronze gates on schema conformance
+
+**Decision:** `fetch_and_stage.py` reads `licence.id` out of `contracts/*.yaml`
+(`load_contract`) instead of a hardcoded dict, and copies `contracts/*.yaml` into
+`data/stage/_contracts/` (`stage_contracts`) on every run, so they sync to S3 and
+through the OneLake shortcut alongside the evidence, landing at
+`Files/he-raw/_contracts/*.yaml`. `nb_01_bronze_ingest` loads those two files and
+validates every raw JSON payload (`brz_docket`, `brz_audio_meta`, `brz_oyez_case`,
+`brz_oyez_transcript`) against its contract's JSON Schema, appending a PASS/FAIL
+per file to `dq_results` and raising on an `error`-severity FAIL.
+
+**Why:** The `required_provenance_fields` and licence values in the YAML contracts
+were being hand-copied into `fetch_and_stage.py` (a literal `LICENCE` dict) with no
+way to catch drift if the contract changed, and the contract's JSON Schema
+(`schema.docket`, `schema.audio_meta`, `schema.case`, `schema.transcript`) was
+validated only in a test skipped outside local dev (`tests/test_contract_schema.py`)
+and never checked against what actually lands in bronze.
+
+**Alternatives considered:** Validating in `fetch_and_stage.py` before upload
+instead of in bronze; rejected for now since catching a schema break earlier is
+a future improvement, not a measured gap today. Duplicating the YAML as a Fabric
+notebook built-in resource (`fabric/nb_01_bronze_ingest.Notebook/builtin/`);
+rejected because it would need a second, hand-kept copy of the same contract,
+the exact drift risk this decision removes. `jsonschema` is not confirmed present
+in the default Fabric Spark runtime, so the notebook cell installs it with
+`%pip install jsonschema -q`; unverified until run in Fabric.
+
+**Result:** _pending — run `fetch_and_stage.py`, confirm `Files/he-raw/_contracts/*.yaml`
+appears via the shortcut, pull the notebook update into the Fabric workspace from
+`fabric-sync`, and run it to confirm the `%pip install` and the new `dq_results` rows._
+
+---
+
 ## 2026-10-24: `duration_match` must check measured MP3 duration, not CourtListener's `duration` field (issue [#19](https://github.com/spykeshivam/hearing-evidence-fabric/issues/19))
 
 **Decision:** The silver `duration_match` check blocks on the measured MP3 duration, not CourtListener's reported `duration`; the CourtListener value becomes a warn-level monitored check instead.
