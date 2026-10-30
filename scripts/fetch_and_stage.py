@@ -6,7 +6,9 @@ For each docket in HEARINGS, this script:
   3. Fetches the matching Oyez case JSON and any transcripts tied to its oral arguments.
   4. Hashes and records provenance (source URL, retrieval time, sha256, licence) for every
      file written to data/stage/, per the contracts in contracts/*.yaml.
-  5. Syncs the stage directory to S3 (unless --no-upload), then writes a per-batch
+  5. Copies contracts/*.yaml into data/stage/_contracts/, so they ride the same
+     S3 -> OneLake path as the evidence and Fabric can validate against them.
+  6. Syncs the stage directory to S3 (unless --no-upload), then writes a per-batch
      manifest (objects.csv) recording each file's real upload_status ("uploaded",
      "size_mismatch", or "missing"), checked against S3 itself rather than trusted
      from the sync command's exit code.
@@ -27,12 +29,14 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
+from hearing_evidence.contracts import load_contract, stage_contracts
 from hearing_evidence.hashing import sha256_of
 from hearing_evidence.s3_verify import verify_objects
 
 # "Staging area" is a holding folder where files wait,
 # already checked and fingerprinted, before they're loaded in s3
 STAGE = Path("data/stage")
+CONTRACTS = Path("contracts")
 CL_API = "https://www.courtlistener.com/api/rest/v4"
 CL_STORAGE = "https://storage.courtlistener.com/"
 OYEZ_API = "https://api.oyez.org"
@@ -40,7 +44,11 @@ OYEZ_API = "https://api.oyez.org"
 # posing as a browser
 UA = "hearing-evidence-portfolio/0.1 (research project; github.com/spykeshivam)"
 CL_MIN_GAP = 15  # seconds between CourtListener API calls (limit is 5 per minute)
-LICENCE = {"courtlistener": "public-domain-court-records", "oyez": "CC-BY-NC-4.0"}
+# licence_id per source, read from the contracts so it can't drift from them
+LICENCE = {
+    "courtlistener": load_contract(CONTRACTS / "courtlistener_audio.yaml")["licence"]["id"],
+    "oyez": load_contract(CONTRACTS / "oyez_transcripts.yaml")["licence"]["id"],
+}
 
 HEARINGS = [
     {"term": 2024, "docket": "23-970", "audio_id": 95225},  # NVIDIA
@@ -156,6 +164,7 @@ def main():
         sys.exit('Set the bucket: $env:HE_BUCKET = "your-bucket-name"')
     auth = {"Authorization": f"Token {token}"}
     STAGE.mkdir(parents=True, exist_ok=True)
+    stage_contracts(CONTRACTS, STAGE / "_contracts")
 
     for h in HEARINGS:
         term, dn = h["term"], h["docket"]

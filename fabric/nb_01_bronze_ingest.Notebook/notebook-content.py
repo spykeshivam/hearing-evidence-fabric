@@ -273,6 +273,81 @@ if failed:
 
 # CELL ********************
 
+# jsonschema isn't in the default Fabric runtime image (unverified: confirm this
+# actually runs here, and drop the cell if it turns out to already be installed).
+%pip install jsonschema -q
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# =====================================================================
+# nb_01_bronze_ingest | cell: validate raw payloads against the data contracts
+# Source : Files/he-raw/_contracts/*.yaml (staged by fetch_and_stage.py
+#          alongside the evidence, via the same S3 -> OneLake shortcut)
+# Checks : each row's JSON payload matches its contract's `required` fields
+#          and types (jsonschema). One PASS/FAIL per file, into dq_results.
+# =====================================================================
+import json, uuid
+import yaml, jsonschema
+from datetime import datetime, timezone
+
+run_id, now = str(uuid.uuid4()), datetime.now(timezone.utc)
+BASE = "/lakehouse/default/Files/he-raw/"   # the shortcut as a local folder
+results = []
+
+def record(check_id, layer, table, ok, observed, expected, severity="error"):
+    results.append((check_id, layer, table, "PASS" if ok else "FAIL",
+                    str(observed), str(expected), severity, run_id, now))
+
+with open(BASE + "_contracts/courtlistener_audio.yaml") as f:
+    cl_contract = yaml.safe_load(f)
+with open(BASE + "_contracts/oyez_transcripts.yaml") as f:
+    oyez_contract = yaml.safe_load(f)
+
+# (table, schema, unwrap): unwrap peels CourtListener's docket search envelope
+CHECKS = [
+    ("brz_docket", cl_contract["schema"]["docket"], lambda d: d["results"][0]),
+    ("brz_audio_meta", cl_contract["schema"]["audio_meta"], None),
+    ("brz_oyez_case", oyez_contract["schema"]["case"], None),
+    ("brz_oyez_transcript", oyez_contract["schema"]["transcript"], None),
+]
+
+for table, schema, unwrap in CHECKS:
+    for row in spark.table(f"dbo.{table}").select("s3_key", "payload").collect():
+        data = json.loads(row.payload)
+        record_data = unwrap(data) if unwrap else data
+        try:
+            jsonschema.validate(instance=record_data, schema=schema)
+            record(f"contract_{table}_{row.s3_key}", "bronze", table, True, "valid", "valid")
+        except jsonschema.ValidationError as e:
+            record(f"contract_{table}_{row.s3_key}", "bronze", table,
+                   False, e.message, "schema-valid")
+
+dq_schema = "check_id string, layer string, table_name string, status string, " \
+            "observed string, expected string, severity string, run_id string, checked_at timestamp"
+out = spark.createDataFrame(results, dq_schema)
+out.write.mode("append").option("mergeSchema", "true").format("delta").saveAsTable("dbo.dq_results")
+out.select("check_id", "status", "observed").show(40, truncate=False)
+
+failed = [r[0] for r in results if r[3] == "FAIL" and r[6] == "error"]
+if failed:
+    raise AssertionError(f"Contract validation failed: {failed}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 # Interactive grid per table; the raw JSON payload is hidden so the provenance columns are readable
 for t in ["brz_object_manifest", "brz_docket", "brz_audio_meta",
           "brz_oyez_case", "brz_oyez_transcript", "dq_results"]:
