@@ -1,6 +1,8 @@
 """Stage SCOTUS (Supreme Court of the United States) hearing evidence for the pipeline.
 
-For each docket in HEARINGS, this script:
+Loads CL_TOKEN and HE_BUCKET from .env on startup (see load_dotenv_file), falling
+back to whatever is already exported in the shell. For each docket in HEARINGS,
+this script:
   1. Looks up the docket on CourtListener and resolves its linked oral-argument audio.
   2. Downloads that audio's metadata JSON, then the MP3 itself from CourtListener's storage CDN.
   3. Fetches the matching Oyez case JSON and any transcripts tied to its oral arguments.
@@ -30,6 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from hearing_evidence.contracts import load_contract, stage_contracts
+from hearing_evidence.env import load_dotenv_file
 from hearing_evidence.hashing import sha256_of
 from hearing_evidence.s3_verify import verify_objects
 
@@ -156,7 +159,9 @@ def main():
     args = ap.parse_args()
 
     # Credentials/config come from the environment, not CLI args, so they never
-    # end up in shell history or a committed script.
+    # end up in shell history or a committed script. load_dotenv_file fills in
+    # anything missing from .env, without overriding a value already exported.
+    load_dotenv_file()
     token, bucket = os.environ.get("CL_TOKEN"), os.environ.get("HE_BUCKET")
     if not token:
         sys.exit('Set the token: $env:CL_TOKEN = Read-Host "Paste CourtListener token"')

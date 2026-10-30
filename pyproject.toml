@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Court hearing audio linked to case records in Microsoft Fabric"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["pyyaml>=6", "jsonschema>=4"]
+dependencies = ["pyyaml>=6", "jsonschema>=4", "python-dotenv>=1"]
 
 [project.optional-dependencies]
 audio = ["librosa", "numpy"]
