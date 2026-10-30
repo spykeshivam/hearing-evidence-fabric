@@ -1,0 +1,140 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.14.0/schema.json",
+  "name": "3703a5978da93e192ba4",
+  "position": {
+    "x": 1315.0862068965516,
+    "y": 68.66379310344827,
+    "z": 1,
+    "height": 920.56034482758616,
+    "width": 566.76724137931035,
+    "tabOrder": 1
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_speaker"
+                    }
+                  },
+                  "Property": "speaker_name"
+                }
+              },
+              "queryRef": "dim_speaker.speaker_name",
+              "nativeQueryRef": "speaker_name"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_speaker"
+                    }
+                  },
+                  "Property": "role"
+                }
+              },
+              "queryRef": "dim_speaker.role",
+              "nativeQueryRef": "role"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_utterance"
+                    }
+                  },
+                  "Property": "Speaking Minutes"
+                }
+              },
+              "queryRef": "fact_utterance.Speaking Minutes",
+              "nativeQueryRef": "Speaking Minutes"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_utterance"
+                    }
+                  },
+                  "Property": "Words per Minute"
+                }
+              },
+              "queryRef": "fact_utterance.Words per Minute",
+              "nativeQueryRef": "Words per Minute"
+            }
+          ]
+        }
+      }
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "08f90327c6344b4f4062",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "dim_speaker"
+              }
+            },
+            "Property": "speaker_name"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "7c3399bbb3cc23823df7",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "dim_speaker"
+              }
+            },
+            "Property": "role"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "851ad8f1adc9433290db",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "fact_utterance"
+              }
+            },
+            "Property": "Speaking Minutes"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "48f4d2cfb46bb4f8f117",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "fact_utterance"
+              }
+            },
+            "Property": "Words per Minute"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

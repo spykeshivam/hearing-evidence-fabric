@@ -1,0 +1,155 @@
+table fact_utterance
+	lineageTag: 2de02b50-45b2-4ec3-8cc6-652683236b6e
+	sourceLineageTag: [dbo].[fact_utterance]
+
+	measure 'Speaking Minutes' = DIVIDE ( SUM ( fact_utterance[duration_s] ), 60 )
+		lineageTag: 1e57a439-525d-4339-8697-ae90c854d021
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure Turns = COUNTROWS ( fact_utterance )
+		formatString: 0
+		lineageTag: 576878da-7047-4830-8e25-bd7fe9cb492e
+
+		changedProperty = Name
+
+	measure 'Share of Hearing' = DIVIDE ( [Speaking Minutes], CALCULATE ( [Speaking Minutes], REMOVEFILTERS ( fact_utterance[side] ) ) )
+		lineageTag: 570da1ae-87ce-4915-a11e-f8beab32acf2
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Words per Minute' = DIVIDE ( SUM ( fact_utterance[word_count] ), [Speaking Minutes] )
+		lineageTag: 667d7cf1-e303-4a83-b1d1-3c0ad14ec3cf
+
+		changedProperty = Name
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column utterance_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 47626a60-0331-4d45-836b-ee22645e2e8d
+		sourceLineageTag: utterance_key
+		summarizeBy: sum
+		sourceColumn: utterance_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column hearing_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 5f3e6222-5f24-49b4-83f0-41d08b909cfc
+		sourceLineageTag: hearing_key
+		summarizeBy: none
+		sourceColumn: hearing_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column case_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 091a9464-4883-49cb-b27b-2eae61d53616
+		sourceLineageTag: case_key
+		summarizeBy: none
+		sourceColumn: case_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column speaker_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: bb74fcd4-8987-43ce-bc67-1b0a29e9a6ab
+		sourceLineageTag: speaker_key
+		summarizeBy: none
+		sourceColumn: speaker_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column side
+		dataType: string
+		lineageTag: aae37a79-9d48-47e9-8a49-0e2c19a47846
+		sourceLineageTag: side
+		summarizeBy: none
+		sourceColumn: side
+
+		annotation SummarizationSetBy = Automatic
+
+	column is_amicus
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: c3f7c069-2ce4-4b34-a1a2-77fd606ac3e7
+		sourceLineageTag: is_amicus
+		summarizeBy: none
+		sourceColumn: is_amicus
+
+		annotation SummarizationSetBy = Automatic
+
+	column start_s
+		dataType: double
+		lineageTag: ccbf3c75-9e7a-44b9-a28c-be949ea38c5f
+		sourceLineageTag: start_s
+		summarizeBy: sum
+		sourceColumn: start_s
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column stop_s
+		dataType: double
+		lineageTag: f10e262a-82ed-419d-bec2-07ed91b60f14
+		sourceLineageTag: stop_s
+		summarizeBy: sum
+		sourceColumn: stop_s
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column duration_s
+		dataType: double
+		isHidden
+		lineageTag: 29d0a32a-21db-483e-a6a6-77a2400dfa5d
+		sourceLineageTag: duration_s
+		summarizeBy: sum
+		sourceColumn: duration_s
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column word_count
+		dataType: int64
+		formatString: 0
+		lineageTag: 032ccf79-269f-49a6-b217-53f8cabee453
+		sourceLineageTag: word_count
+		summarizeBy: sum
+		sourceColumn: word_count
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_utterance = entity
+		mode: directLake
+		source
+			entityName: fact_utterance
+			schemaName: dbo
+			expressionSource: 'DirectLake - lh_gold'
+
