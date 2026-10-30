@@ -3,7 +3,13 @@ import json
 import jsonschema
 import pytest
 
-from hearing_evidence.contracts import load_contract, unwrap_docket, validate_file, validate_record
+from hearing_evidence.contracts import (
+    load_contract,
+    stage_contracts,
+    unwrap_docket,
+    validate_file,
+    validate_record,
+)
 
 SCHEMA = {
     "type": "object",
@@ -44,3 +50,31 @@ def test_load_contract_reads_schema_block(tmp_path):
     contract_path.write_text("schema:\n  docket:\n    type: object\n", encoding="utf-8")
     contract = load_contract(contract_path)
     assert contract["schema"]["docket"]["type"] == "object"
+
+
+def test_stage_contracts_copies_every_yaml(tmp_path):
+    contracts_dir = tmp_path / "contracts"
+    contracts_dir.mkdir()
+    (contracts_dir / "a.yaml").write_text("source_id: a\n", encoding="utf-8")
+    (contracts_dir / "b.yaml").write_text("source_id: b\n", encoding="utf-8")
+    (contracts_dir / "notes.txt").write_text("ignore me\n", encoding="utf-8")
+
+    stage_dir = tmp_path / "stage" / "_contracts"
+    copied = stage_contracts(contracts_dir, stage_dir)
+
+    assert {p.name for p in copied} == {"a.yaml", "b.yaml"}
+    assert (stage_dir / "a.yaml").read_text(encoding="utf-8") == "source_id: a\n"
+
+
+def test_stage_contracts_overwrites_existing_copy(tmp_path):
+    contracts_dir = tmp_path / "contracts"
+    contracts_dir.mkdir()
+    (contracts_dir / "a.yaml").write_text("source_id: a\n", encoding="utf-8")
+
+    stage_dir = tmp_path / "stage" / "_contracts"
+    stage_dir.mkdir(parents=True)
+    (stage_dir / "a.yaml").write_text("stale\n", encoding="utf-8")
+
+    stage_contracts(contracts_dir, stage_dir)
+
+    assert (stage_dir / "a.yaml").read_text(encoding="utf-8") == "source_id: a\n"

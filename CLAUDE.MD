@@ -37,6 +37,7 @@ Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Fa
 ## Conventions
 - Windows and PowerShell. Use uv (uv sync, uv run ruff check ., uv run ruff format ., uv run pytest). Use Invoke-WebRequest with -UseBasicParsing.
 - Logic goes in src/hearing_evidence/ (tested); scripts only call it. Heavy libraries (librosa, NLP) stay in optional extras. Commit small, branch and PR, keep CI green.
+- Every function gets a docstring: short for a simple one, longer for a complex one, stating what it does (see "Writing docs" for what goes in it).
 - Keep a running log in docs/decisions.md.
 
 ## Current state
@@ -52,6 +53,7 @@ Note: the project folder still sits inside OneDrive; move it to C:\dev.
 - Write in positive statements. Avoid contrast constructions such as "not X but Y", "this isn't X, it's Y" and "rather than X". State Y.
 - Keep docs short, and update the affected doc in the same commit as the change.
 - docs/decisions.md is the one place that records choices and their reasons. No need to mention history of the system anywhere else.
+- Same rule for docstrings and code comments: state what the file/function does and its workflow, not why it was created or what decision shaped it. If current behaviour comes from a logged decision, cite it as "check docs/decisions.md, <date> for more details" instead of retelling it.
 
 ### 2. Chat replies
 - Answer exactly what was asked. A simple question gets the simple answer, with no extras, no recap and no unrequested next steps.
@@ -67,6 +69,7 @@ When I ask you to explain a topic:
 
 ### 4. Workflow (SDLC)
 - Work on a branch and worktree per task, open a pull request, merge only when CI is green. Reference the issue in commits.
+- Never delete fabric-sync (local or remote), even after its PR merges; after a merge, keep it and fast-forward it to main.
 - Whenever a task has become big enough to push it, remind me than I need to push. We don't want to pile up lots of code in a single PR.
 - Write or update tests with every change to code in src/. Run `uv run ruff check .`, `uv run ruff format .` and `uv run pytest` before committing.
 - Small commits with clear messages. Never commit secrets, audio, Oyez files or data/.

@@ -1,12 +1,16 @@
 """Stage SCOTUS (Supreme Court of the United States) hearing evidence for the pipeline.
 
-For each docket in HEARINGS, this script:
+Loads CL_TOKEN and HE_BUCKET from .env on startup (see load_dotenv_file), falling
+back to whatever is already exported in the shell. For each docket in HEARINGS,
+this script:
   1. Looks up the docket on CourtListener and resolves its linked oral-argument audio.
   2. Downloads that audio's metadata JSON, then the MP3 itself from CourtListener's storage CDN.
   3. Fetches the matching Oyez case JSON and any transcripts tied to its oral arguments.
   4. Hashes and records provenance (source URL, retrieval time, sha256, licence) for every
      file written to data/stage/, per the contracts in contracts/*.yaml.
-  5. Syncs the stage directory to S3 (unless --no-upload), then writes a per-batch
+  5. Copies contracts/*.yaml into data/stage/_contracts/, so they ride the same
+     S3 -> OneLake path as the evidence and Fabric can validate against them.
+  6. Syncs the stage directory to S3 (unless --no-upload), then writes a per-batch
      manifest (objects.csv) recording each file's real upload_status ("uploaded",
      "size_mismatch", or "missing"), checked against S3 itself rather than trusted
      from the sync command's exit code.
@@ -27,22 +31,27 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
+from hearing_evidence.contracts import load_contract, stage_contracts
+from hearing_evidence.env import load_dotenv_file
 from hearing_evidence.hashing import sha256_of
 from hearing_evidence.s3_verify import verify_objects
 
-# "Staging area" is a data-engineering term: a holding folder where files wait,
-# already checked and fingerprinted, before they're loaded for real (here, before
-# they're synced to S3).
+# "Staging area" is a holding folder where files wait,
+# already checked and fingerprinted, before they're loaded in s3
 STAGE = Path("data/stage")
+CONTRACTS = Path("contracts")
 CL_API = "https://www.courtlistener.com/api/rest/v4"
 CL_STORAGE = "https://storage.courtlistener.com/"
 OYEZ_API = "https://api.oyez.org"
 # Identifies us honestly to the APIs we call (both run by non-profits) instead of
-# posing as a browser. If something we do causes trouble, this lets them reach out
-# and ask us to fix it rather than just banning the traffic.
+# posing as a browser
 UA = "hearing-evidence-portfolio/0.1 (research project; github.com/spykeshivam)"
 CL_MIN_GAP = 15  # seconds between CourtListener API calls (limit is 5 per minute)
-LICENCE = {"courtlistener": "public-domain-court-records", "oyez": "CC-BY-NC-4.0"}
+# licence_id per source, read from the contracts so it can't drift from them
+LICENCE = {
+    "courtlistener": load_contract(CONTRACTS / "courtlistener_audio.yaml")["licence"]["id"],
+    "oyez": load_contract(CONTRACTS / "oyez_transcripts.yaml")["licence"]["id"],
+}
 
 HEARINGS = [
     {"term": 2024, "docket": "23-970", "audio_id": 95225},  # NVIDIA
@@ -150,7 +159,9 @@ def main():
     args = ap.parse_args()
 
     # Credentials/config come from the environment, not CLI args, so they never
-    # end up in shell history or a committed script.
+    # end up in shell history or a committed script. load_dotenv_file fills in
+    # anything missing from .env, without overriding a value already exported.
+    load_dotenv_file()
     token, bucket = os.environ.get("CL_TOKEN"), os.environ.get("HE_BUCKET")
     if not token:
         sys.exit('Set the token: $env:CL_TOKEN = Read-Host "Paste CourtListener token"')
@@ -158,6 +169,7 @@ def main():
         sys.exit('Set the bucket: $env:HE_BUCKET = "your-bucket-name"')
     auth = {"Authorization": f"Token {token}"}
     STAGE.mkdir(parents=True, exist_ok=True)
+    stage_contracts(CONTRACTS, STAGE / "_contracts")
 
     for h in HEARINGS:
         term, dn = h["term"], h["docket"]

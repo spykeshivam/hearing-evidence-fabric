@@ -1,9 +1,8 @@
 """PreToolUse guard (Bash|PowerShell): enforce "branch + worktree per task".
 
-See CLAUDE.MD's Workflow section. A session that creates a new branch
-directly in the main checkout changes the branch everyone sharing this
-working directory sees next - see docs/decisions.md, 2026-10-20, for the
-mix-up that happened here when that went unenforced.
+Blocks `git checkout -b` / `git switch -c` run outside a linked worktree,
+and nudges to remove a worktree once its branch is deleted. See CLAUDE.MD's
+Workflow section. Check docs/decisions.md, 2026-10-20 for more details.
 """
 
 import contextlib
@@ -14,6 +13,13 @@ import sys
 
 
 def run(*args, cwd=None):
+    """Run a command and return its stdout, or "" on any failure.
+
+    A hook must never crash or hang the tool call it's guarding: any failure
+    here (git missing, timeout, bad cwd) is swallowed and treated as "" so
+    the caller just sees an empty/unknown result instead of an exception.
+    """
+    # catches e.g. git not on PATH, the 10s timeout firing, or a bad cwd
     try:
         return subprocess.run(
             args, capture_output=True, text=True, timeout=10, cwd=cwd
@@ -42,11 +48,17 @@ def leading_cd_target(cmd):
 
 
 def in_linked_worktree(cwd=None):
+    """True if cwd is inside a linked worktree rather than the main checkout.
+
+    git's own --git-dir answers this: for the main checkout it points at
+    `.git`, but for a linked worktree it points inside `.git/worktrees/<name>`.
+    """
     gitdir = run("git", "rev-parse", "--git-dir", cwd=cwd)
     return "worktrees" + ("\\" if "\\" in gitdir else "/") in gitdir
 
 
 def deny(reason):
+    """Print a PreToolUse response that blocks the tool call, showing `reason`."""
     print(
         json.dumps(
             {
@@ -61,14 +73,25 @@ def deny(reason):
 
 
 def nudge(message):
+    """Print a PreToolUse response that shows `message` without blocking the call."""
     print(json.dumps({"systemMessage": message}))
 
 
+# matches: git checkout -b <name>  /  git switch -c|--create <name>
 CREATE_BRANCH = re.compile(r"\bgit\s+(checkout\s+-[bB]\b|switch\s+(-[cC]\b|--create\b))")
+# matches: git branch -d <name>  /  git branch --delete[=]<name>; group 1 or 2 holds <name>
 DELETE_BRANCH = re.compile(r"\bgit\s+branch\s+-[dD]\s+(\S+)|--delete[= ]+(\S+)")
 
 
 def main():
+    """Read the hook's JSON payload from stdin and enforce the worktree policy.
+
+    The harness calls this script before every Bash/PowerShell tool call and
+    passes the command it's about to run as JSON on stdin. If that command
+    creates a branch outside a linked worktree, deny it; if it deletes a
+    branch, nudge about cleaning up that branch's worktree. Anything else
+    (not a git repo, no matching command) is a silent no-op.
+    """
     try:
         payload = json.load(sys.stdin)
     except Exception:
@@ -80,6 +103,7 @@ def main():
     if run("git", "rev-parse", "--git-dir", cwd=cwd) == "":
         return  # not inside a git repo
 
+    # branch creation inside a worktree is fine; only the main checkout is blocked
     if CREATE_BRANCH.search(cmd) and not in_linked_worktree(cwd):
         deny(
             "This creates a branch directly in the main checkout, which changes "
@@ -93,10 +117,11 @@ def main():
 
     m = DELETE_BRANCH.search(cmd)
     if m:
-        branch = m.group(1) or m.group(2)
+        branch = m.group(1) or m.group(2)  # whichever alternative in the regex matched
         for line in run("git", "worktree", "list").splitlines():
+            # `git worktree list` prints one line per worktree as "<path> <sha> [<branch>]"
             if f"[{branch}]" in line:
-                path = line.split()[0]
+                path = line.split()[0]  # first column is the worktree's path
                 nudge(
                     f"Reminder: worktree at {path} is still registered for "
                     f"branch '{branch}'. Once it's merged, run: "
@@ -106,5 +131,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # a bug in this script must never block the tool call it's guarding
     with contextlib.suppress(Exception):
         main()
