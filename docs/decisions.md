@@ -21,6 +21,24 @@ Template:
 
 ---
 
+## 2026-10-30: fetch_and_stage.py loads CL_TOKEN/HE_BUCKET from .env automatically
+
+**Decision:** Added `src/hearing_evidence/env.py` (`load_dotenv_file`), a small
+`KEY=VALUE` parser that fills in `os.environ` from `.env` without overwriting a
+value already exported in the shell. `fetch_and_stage.py` calls it at the top of
+`main()`, before reading `CL_TOKEN`/`HE_BUCKET`.
+
+**Why:** `.env` already held both values but nothing read it — `uv run` does not
+auto-load `.env` by default (confirmed: `uv run python -c "..."` came back with
+the var unset), and the script only called `os.environ.get`. Every run required
+re-exporting both vars by hand in the current shell.
+
+**Alternatives considered:** `uv run --env-file .env ...` on every invocation;
+rejected since it has to be remembered and typed each time. Adding `python-dotenv`;
+rejected as a dependency for parsing two flat lines (purpose test).
+
+---
+
 ## 2026-10-29: Contracts ride the S3 -> OneLake sync; bronze gates on schema conformance
 
 **Decision:** `fetch_and_stage.py` reads `licence.id` out of `contracts/*.yaml`
