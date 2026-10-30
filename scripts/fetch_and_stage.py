@@ -82,6 +82,8 @@ def save_json(key, url, source, kind, headers=None, cl=False):
 
     cl=True paces requests to respect CourtListener's rate limit (CL_MIN_GAP between
     calls) and retries once on HTTP 429 using the server's Retry-After header.
+    Returns the parsed JSON of the response, and records provenance (url, retrieved_at,
+    source, kind) for every file written.
     """
     global _last_cl_call
     path = STAGE / key
@@ -163,6 +165,8 @@ def main():
 
         try:
             # Step 1: look up the docket on CourtListener by docket number.
+            # Returns a JSON envelope with a "results" list of matching dockets,
+            # which is usually just one item.
             # court=scotus restricts the lookup to the Supreme Court of the United States.
             res = save_json(
                 f"courtlistener/dockets/scotus_{dn}.json",
@@ -176,16 +180,14 @@ def main():
                 print("  no CourtListener docket found, skipping")
                 continue
 
-            # Step 2: resolve the audio reference from the docket's own audio_files field.
-            audio_ref = None
+            # Step 2: resolve the audio reference from the docket's own audio_files field
+            # (a list of CourtListener audio-endpoint URLs).
             files = res["results"][0].get("audio_files") or []
-            if files:
-                first = files[0]
-                audio_ref = first if isinstance(first, str) else first.get("resource_uri")
-            if not audio_ref:
+            if not files:
                 # TODO: fallback (e.g. h["audio_id"]) not implemented yet
                 print("  no audio linked to this docket, skipping")
                 continue
+            audio_ref = files[0]
 
             # Step 3: fetch the audio's metadata, then the MP3 itself if one is hosted.
             a = save_json(
@@ -257,8 +259,8 @@ def main():
 
     # Mirror the stage directory to S3; _provenance.json is local bookkeeping only.
     # check=False: a partial sync (e.g. one file timing out) must still leave a
-    # manifest that's honest about what made it, rather than crashing before that
-    # manifest is ever written.
+    # manifest that's honest about what made it.
+    # s3 sync syncs the data/stage/ folder to the bucket, excluding _provenance.json.
     sync_result = subprocess.run(
         [
             "aws",
