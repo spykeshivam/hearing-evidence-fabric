@@ -51,12 +51,55 @@ display(df)
 
 # CELL ********************
 
+# --- upload_status -------------------------------------
+# Set by fetch_and_stage.py per file per batch (every batch re-lists all files):
+#   uploaded       after syncing, the script checked S3 and found the file at the
+#                  expected size: the only status that proves the file is in S3
+#   size_mismatch  the file is in S3 but its size differs: partial or wrong upload
+#   missing        the script checked S3 and did not find the file
+#                  (the early batch here is a false result from the upload-check bug)
+#   not_attempted  dry run (--no-upload): manifest built, nothing sent. Its manifest
+#                  still reaches S3 when a later real run syncs the stage folder
+#   NULL           batch written before the upload_status column existed
+# Rule: trust only the latest row per file with upload_status = 'uploaded'.
+# Several sha256 values for one s3_key = the file's content changed between batches:
+# normal if explained (deliberate re-fetch), an alarm if not (30 Oct: files reformatted).
+# -------------------------------------------------------------------------------
+
 from pyspark.sql import functions as F
 
 print("batches:", df.select("batch_id").distinct().count())
 print("distinct files:", df.select("s3_key").distinct().count())
 df.groupBy("upload_status").count().show()
 df.groupBy("s3_key").agg(F.countDistinct("sha256").alias("n_hashes")).filter("n_hashes > 1").show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# For each changed file: every distinct version, when it was fetched, and which batches saw it
+changed = (df.groupBy("s3_key").agg(F.countDistinct("sha256").alias("n"))
+             .filter("n > 1").select("s3_key"))
+(df.join(changed, "s3_key")
+   .groupBy("s3_key", "sha256", "retrieved_at", "bytes")
+   .agg(F.min("batch_id").alias("first_batch"), F.max("batch_id").alias("last_batch"))
+   .orderBy("s3_key", "first_batch")
+   .show(truncate=False))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 
 # METADATA ********************
 
@@ -187,6 +230,32 @@ load_raw_json("transcript", "Files/he-raw/oyez/transcripts/*.json",         "dbo
 
 # CELL ********************
 
+# Rows per file version and per run: a correct load has exactly 1 row per (s3_key, sha256)
+from pyspark.sql import functions as F
+t = spark.table("dbo.brz_oyez_transcript")
+(t.groupBy("_run_id", "s3_key", "sha256").count()
+   .orderBy(F.desc("count")).show(truncate=60))
+spark.sql("DESCRIBE HISTORY dbo.brz_oyez_transcript").select("version", "timestamp", "operation", "operationMetrics").show(truncate=80)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 # Reconcile: files the manifest lists per kind (the MP3s are not loaded here).
 (spark.table("dbo.brz_object_manifest")
  .filter(F.col("kind").isin("docket", "audio_meta", "case", "transcript"))
@@ -283,7 +352,7 @@ spark.sql("""
 
 # jsonschema isn't in the default Fabric runtime image (unverified: confirm this
 # actually runs here, and drop the cell if it turns out to already be installed).
-%pip install jsonschema -q
+%pip install jsonschema
 
 # METADATA ********************
 
@@ -328,14 +397,22 @@ CHECKS = [
 
 for table, schema, unwrap in CHECKS:
     for row in spark.table(f"dbo.{table}").select("s3_key", "payload").collect():
-        data = json.loads(row.payload)
-        record_data = unwrap(data) if unwrap else data
         try:
+            data = json.loads(row.payload)
+            record_data = unwrap(data) if unwrap else data
             jsonschema.validate(instance=record_data, schema=schema)
             record(f"contract_{table}_{row.s3_key}", "bronze", table, True, "valid", "valid")
+        except json.JSONDecodeError as e:
+            record(f"contract_{table}_{row.s3_key}", "bronze", table,
+                   False, f"malformed JSON: {e}", "valid-json")
+        except (TypeError, KeyError, IndexError) as e:
+            record(f"contract_{table}_{row.s3_key}", "bronze", table,
+                   False, f"unexpected shape: {e}", "shape")
         except jsonschema.ValidationError as e:
             record(f"contract_{table}_{row.s3_key}", "bronze", table,
                    False, e.message, "schema-valid")
+
+
 
 dq_schema = "check_id string, layer string, table_name string, status string, " \
             "observed string, expected string, severity string, run_id string, checked_at timestamp"
