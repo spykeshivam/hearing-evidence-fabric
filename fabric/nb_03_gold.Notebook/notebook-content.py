@@ -61,8 +61,9 @@ print(f"Silver run {last} passed its blocking checks.")
 dimensions and the matter-access reference.
 
 Dimensions describe the who and what (case, hearing, speaker). Surrogate keys are
-deterministic hashes of natural keys, so a full rebuild reproduces identical keys and
-every rerun is idempotent. Every dimension that a fact can miss carries an "unknown"
+deterministic hashes of natural keys (the identifier the real world already uses. eg. 
+Docket 23-970), so a full rebuild reproduces identical keys and every rerun is 
+idempotent. Every dimension that a fact can miss carries an "unknown"
 member (key -1), so an unresolved speaker never silently drops a fact row.
 """
 def skey(*cols):
@@ -83,7 +84,7 @@ access.write.mode("overwrite").format("delta").saveAsTable(f"{GLD}.ref_matter_ac
 dim_case = (hearing.join(access, "docket", "left")
     .select(skey("docket").alias("case_key"), "docket", "case_name", "term",
             "first_party", "second_party", "licence_id",
-            F.coalesce("is_restricted", F.lit(False)).alias("is_restricted")))
+            F.coalesce("is_restricted", F.lit(False)).alias("is_restricted"))) # Turns the NULL rows (not found in ref_matter_access) to False
 
 # dim_hearing: one row per oral argument. One hearing per case in this dataset; a real
 # docket can be argued more than once, so its natural key would then add the argument date.
@@ -96,12 +97,15 @@ unknown = spark.createDataFrame([(-1, None, "Unknown", "unknown")],
                                 "speaker_key bigint, speaker_id string, speaker_name string, role string")
 dim_speaker = (part.select("speaker_id", "speaker_name", "role").dropDuplicates(["speaker_id"])
                .select(skey("speaker_id").alias("speaker_key"), "speaker_id", "speaker_name", "role")
-               .unionByName(unknown))
+               .unionByName(unknown))   # “ByName”: the two tables are matched by column name, not by position.
+                                        # eg. lines up speaker_name with speaker_name
 
 for name, df in [("dim_case", dim_case), ("dim_hearing", dim_hearing), ("dim_speaker", dim_speaker)]:
     df.write.mode("overwrite").option("overwriteSchema", "true").format("delta").saveAsTable(f"{GLD}.{name}")
     print(name, spark.table(f"{GLD}.{name}").count())
 display(spark.table(f"{GLD}.dim_case"))
+display(spark.table(f"{GLD}.dim_hearing"))
+display(spark.table(f"{GLD}.dim_speaker"))
 
 # METADATA ********************
 
@@ -216,7 +220,7 @@ schema = ("check_id string, layer string, table_name string, status string, obse
           "expected string, severity string, run_id string, checked_at timestamp")
 out = spark.createDataFrame(results, schema)
 out.write.mode("append").format("delta").saveAsTable("lh_gold.ops.dq_results")
-display(out.select("check_id", "status", "severity", "observed", "expected"))
+display(out)
 
 failed = [r[0] for r in results if r[3] == "FAIL" and r[6] == "error"]
 if failed:

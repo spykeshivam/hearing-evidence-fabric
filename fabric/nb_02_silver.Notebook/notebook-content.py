@@ -43,8 +43,6 @@ promotion gate.
 
 Silver is built only from bronze data that passed integrity verification.
 Bronze accepts everything "as received"; promotion to silver is the controlled step.
-A hearing whose audio failed its sha256 check never reaches silver, so downstream
-consumers only ever see verified evidence.
 """
 from pyspark.sql import functions as F, Window
 from pyspark.sql.types import *
@@ -77,10 +75,22 @@ last_run = dq.orderBy(F.col("checked_at").desc()).first()["run_id"]
 # Blocking check: MP3 sha256 equals the fingerprint recorded at download time (chain of custody).
 verified = (dq.filter((F.col("run_id") == last_run)
                       & F.col("check_id").startswith("audio_sha256_")
-                      & (F.col("status") == "PASS"))
-              .select(F.regexp_extract("check_id", r"(\d{2}-\d+)", 1).alias("docket")))
+                      & (F.col("status") == "PASS")))
 
-print("verified dockets:", [r.docket for r in verified.collect()])
+dockets_verified=verified.select(F.regexp_extract("check_id", r"(\d{2}-\d+)", 1).alias("docket"))
+
+print("verified dockets:", [r.docket for r in dockets_verified.collect()])
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+verified.show()
 
 # METADATA ********************
 
@@ -114,7 +124,7 @@ doc_t = StructType([StructField("transcript", StructType([
 
 slv_turn = (
     latest("brz_oyez_transcript")
-    .join(verified, "docket")                           # promotion gate: verified hearings only
+    .join(dockets_verified, "docket")                           # promotion gate: verified hearings only
     .withColumn("j", F.from_json("payload", doc_t))     # semi-structured text -> typed nested struct
     # posexplode turns an array into rows and keeps the position, which becomes part of the key
     .select("docket", "sha256", "_source_file",
@@ -132,10 +142,25 @@ slv_turn = (
     .withColumn("_processed_at", F.current_timestamp())             # lineage: when silver was built
 )
 
-# Overwrite = an idempotent full rebuild from bronze: re-running gives the same result, never duplicates.
+# Overwrite = an idempotent(re-running gives the same result) full rebuild from bronze
+# replaces the whole slv_turn table with what you just built.
 # Fine at this size; at scale, an incremental MERGE on the natural key replaces it.
 slv_turn.write.mode("overwrite").format("delta").saveAsTable(f"{SLV}.slv_turn")
 display(spark.table(f"{SLV}.slv_turn").groupBy("docket").count())
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df = spark.table(f"{SLV}.slv_turn")
+print(f"=== {SLV}.slv_turn: {df.count()} rows | grain/columns: {df.columns}")
+# Lineage columns are hidden in the preview; they stay in the table
+display(df.limit(10))
 
 # METADATA ********************
 
@@ -166,12 +191,14 @@ def measure_duration(s3_key):
 
 
 # Measure only verified audio (4 small rows, so a driver-side loop is fine).
+# Every other file(json format) was extracted in bronze. Audio extracted here. Why? Because we only
+# Measure duration of audio. Q. Should we load it in bronze in case of STT?
 # Window keeps the newest manifest row per file, the same rule as everywhere else.
 w_m = Window.partitionBy("s3_key").orderBy(F.col("batch_id").desc())
 audio_rows = (spark.table(f"{BRZ}.brz_object_manifest")
               .withColumn("_rn", F.row_number().over(w_m)).filter("_rn = 1 AND kind = 'audio'")
               .withColumn("docket", F.regexp_extract("s3_key", r"(\d{2}-\d+)", 1))
-              .join(verified, "docket").select("docket", "s3_key").collect())
+              .join(dockets_verified, "docket").select("docket", "s3_key").collect())
 measured = spark.createDataFrame(
     [(r.docket, measure_duration(r.s3_key)) for r in audio_rows],
     "docket string, measured_duration_s double")
@@ -196,7 +223,21 @@ slv_hearing = (oyez_case.join(cl_audio, "docket").join(measured, "docket")   # i
                .withColumn("_processed_at", F.current_timestamp()))
 slv_hearing.write.mode("overwrite").option("overwriteSchema", "true") \
     .format("delta").saveAsTable(f"{SLV}.slv_hearing")
-display(spark.table(f"{SLV}.slv_hearing"))
+display(spark.table(f"{SLV}.slv_hearing").groupBy("docket").count())
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df = spark.table(f"{SLV}.slv_hearing")
+print(f"=== {SLV}.slv_hearing: {df.count()} rows | grain/columns: {df.columns}")
+# Lineage columns are hidden in the preview; they stay in the table
+display(df.limit(10))
 
 # METADATA ********************
 
@@ -224,8 +265,8 @@ case_t = StructType([
     StructField("heard_by", ArrayType(StructType([
         StructField("members", ArrayType(person_t))])))])           # the bench that heard the case
 
-
-cases = latest("brz_oyez_case").join(verified, "docket").withColumn("j", F.from_json("payload", case_t))
+# Take the Oyez case JSON, stored as one long text string, read it using the map case_t, and put the result in a new column called j
+cases = latest("brz_oyez_case").join(dockets_verified, "docket").withColumn("j", F.from_json("payload", case_t))
 
 # Advocates: the side is derived from free text by keyword rules. Amici "supporting" a party
 # are counted on that party's side and flagged, so speaking time by side stays meaningful.
@@ -264,7 +305,7 @@ resolved = turns.join(slv_case_participant.select("docket", "speaker_id"), ["doc
 display(turns.groupBy("docket").count().withColumnRenamed("count", "turns")
         .join(resolved.groupBy("docket").count().withColumnRenamed("count", "resolved"), "docket")
         .withColumn("resolution_rate", F.round(F.col("resolved") / F.col("turns"), 3)))
-display(slv_case_participant.filter("role = 'advocate'").select("docket", "speaker_name", "side", "is_amicus", "role_description"))
+display(slv_case_participant)
 
 # METADATA ********************
 
@@ -323,9 +364,9 @@ for r in stats.collect():
 part = spark.table(f"{SLV}.slv_case_participant")
 turns = spark.table(f"{SLV}.slv_turn")
 res = (turns.groupBy("docket").agg(F.count("*").alias("turns"))
-       .join(turns.join(part, ["docket", "speaker_id"], "left_semi")   # left_semi = turns WITH a match
+       .join(turns.join(part, ["docket", "speaker_id"], "left_semi")   # left_semi = keep the rows of the left table that have a match in the right table. It returns only the left table’s columns.(turns) Nothing is added from part.
              .groupBy("docket").agg(F.count("*").alias("resolved")), "docket", "left")
-       .fillna(0, ["resolved"]).collect())
+       .fillna(0, ["resolved"]).collect()) # Prevent silent failure in case of no turns resolved for a case
 for r in res:
     record(f"speaker_resolution_{r.docket}", "slv_case_participant",
            r.resolved / r.turns >= 0.95, round(r.resolved / r.turns, 3), ">=0.95")

@@ -22,6 +22,19 @@
 
 # CELL ********************
 
+# jsonschema isn't in the default Fabric runtime image (unverified: confirm this
+# actually runs here, and drop the cell if it turns out to already be installed).
+# %pip install jsonschema
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 # Welcome to your new notebook
 # Type here in the cell editor to add code!
 for f in notebookutils.fs.ls("Files/he-raw/courtlistener/audio"):
@@ -51,12 +64,56 @@ display(df)
 
 # CELL ********************
 
+# --- upload_status -------------------------------------
+# Set by fetch_and_stage.py per file per batch (every batch re-lists all files):
+#   uploaded       after syncing, the script checked S3 and found the file at the
+#                  expected size: the only status that proves the file is in S3
+#   size_mismatch  the file is in S3 but its size differs: partial or wrong upload
+#   missing        the script checked S3 and did not find the file
+#                  (the early batch here is a false result from the upload-check bug)
+#   not_attempted  dry run (--no-upload): manifest built, nothing sent. Its manifest
+#                  still reaches S3 when a later real run syncs the stage folder
+#   NULL           batch written before the upload_status column existed
+# Rule: trust only the latest row per file with upload_status = 'uploaded'.
+# Several sha256 values for one s3_key = the file's content changed between batches:
+# normal if explained (deliberate re-fetch), an alarm if not (30 Oct: files reformatted).
+# -------------------------------------------------------------------------------
+
 from pyspark.sql import functions as F
 
 print("batches:", df.select("batch_id").distinct().count())
 print("distinct files:", df.select("s3_key").distinct().count())
 df.groupBy("upload_status").count().show()
-df.groupBy("s3_key").agg(F.countDistinct("sha256").alias("n_hashes")).filter("n_hashes > 1").show()
+df.groupBy("s3_key").agg(F.countDistinct("sha256").alias("n_hashes")).filter("n_hashes > 1").show() #quick change-detection query. If a file appears, its content changed at some point of time.
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# For each changed file: every distinct version, when it was fetched, and which batches saw it
+# it gives one row per distinct combination of hash, fetch time and size, not one row per hash.
+changed = (df.groupBy("s3_key").agg(F.countDistinct("sha256").alias("n"))
+             .filter("n > 1").select("s3_key"))
+(df.join(changed, "s3_key")
+   .groupBy("s3_key", "sha256", "retrieved_at", "bytes")
+   .agg(F.min("batch_id").alias("first_batch"), F.max("batch_id").alias("last_batch"))
+   .orderBy("s3_key", "first_batch")
+   .show(truncate=False))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 
 # METADATA ********************
 
@@ -80,8 +137,11 @@ from pyspark.sql import functions as F
 
 TABLE = "dbo.brz_object_manifest"  # schema.table (dbo = default schema)
 
-# One random ID per notebook run, stored on every row it loads (lineage).
-run_id = str(uuid.uuid4())
+import uuid
+from datetime import datetime, timezone
+RUN_ID = str(uuid.uuid4())
+RUN_STARTED_AT = datetime.now(timezone.utc)
+print("run:", RUN_ID)
 
 new = (
     # Read every batch's CSV at once; the * matches each batch=<timestamp> folder.
@@ -94,7 +154,7 @@ new = (
     # Lineage columns (the _ prefix marks pipeline-added columns):
     .withColumn("_source_file", F.input_file_name())    # exact CSV the row came from
     .withColumn("_ingested_at", F.current_timestamp())  # when Fabric loaded the row
-    .withColumn("_run_id", F.lit(run_id))               # which notebook run loaded it
+    .withColumn("_run_id", F.lit(RUN_ID))               # which notebook run loaded it
 )
 
 # Skip batches already loaded: a left_anti join keeps only rows whose batch_id
@@ -135,7 +195,6 @@ import uuid
 from pyspark.sql import functions as F
 from pyspark.sql import Window
 
-run_id = str(uuid.uuid4())  # one ID per notebook run, stored on every row (lineage)
 
 # Latest manifest row per file. The manifest repeats every file in every batch,
 # so row_number() = 1 over batch_id DESC picks the most recent listing.
@@ -155,13 +214,17 @@ def load_raw_json(kind, glob, table):
         # instead of one row per line, so the JSON stays intact.
         spark.read.option("wholetext", True).text(glob)
         .withColumnRenamed("value", "payload")
-        .withColumn("_source_file", F.input_file_name())  # full path of the file
+        .withColumn("_source_file", F.input_file_name())  # full OneLake path of the json  glob file
         # Cut the full path down to the S3 key, so we can join the manifest.
         .withColumn("s3_key", F.regexp_extract("_source_file", r"/Files/he-raw/(.*)$", 1))
         .join(latest, "s3_key", "left")                  # add sha256, retrieved_at, ...
+        # kind, _ingested_at, _run_id — added here, during this Fabric ingestion run (bronze stage).
+        # sha256, retrieved_at, source_url, licence_id, upload_status — these were 
+        # computed/recorded locally by fetch_and_stage.py during the fetch/upload stage, 
+        # written into the manifest CSV, and only arrive in this cell via the join to latest.
         .withColumn("kind", F.lit(kind))
         .withColumn("_ingested_at", F.current_timestamp())
-        .withColumn("_run_id", F.lit(run_id))
+        .withColumn("_run_id", F.lit(RUN_ID))
     )
     # Skip files already loaded: left_anti keeps only (s3_key, sha256) pairs
     # that are not in the target table yet.
@@ -187,9 +250,36 @@ load_raw_json("transcript", "Files/he-raw/oyez/transcripts/*.json",         "dbo
 
 # CELL ********************
 
+# Rows per file version and per run: a correct load has exactly 1 row per (s3_key, sha256)
+from pyspark.sql import functions as F
+t = spark.table("dbo.brz_oyez_transcript")
+(t.groupBy("_run_id", "s3_key", "sha256").count()
+   .orderBy(F.desc("count")).show(truncate=60))
+
+# See history of the delta table to debug anything unexpected
+spark.sql("DESCRIBE HISTORY dbo.brz_oyez_transcript").select("version", "timestamp", "operation", "operationMetrics").show(truncate=80)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 # Reconcile: files the manifest lists per kind (the MP3s are not loaded here).
 (spark.table("dbo.brz_object_manifest")
- .filter(F.col("kind").isin("docket", "audio_meta", "case", "transcript"))
  .select("kind", "s3_key").distinct()
  .groupBy("kind").count().show())
 
@@ -214,14 +304,13 @@ import hashlib, uuid
 from datetime import datetime, timezone
 from pyspark.sql import functions as F, Window
 
-run_id, now = str(uuid.uuid4()), datetime.now(timezone.utc)
 BASE = "/lakehouse/default/Files/he-raw/"   # the shortcut as a local folder
 results = []
 
 def record(check_id, layer, table, ok, observed, expected, severity="error"):
     # severity: "error" stops the run, "warn" is logged only
     results.append((check_id, layer, table, "PASS" if ok else "FAIL",
-                    str(observed), str(expected), severity, run_id, now))
+                    str(observed), str(expected), severity, RUN_ID, RUN_STARTED_AT))
 
 # Latest manifest row per file (the manifest repeats every file in each batch).
 w = Window.partitionBy("s3_key").orderBy(F.col("batch_id").desc())
@@ -256,34 +345,13 @@ schema = "check_id string, layer string, table_name string, status string, " \
          "observed string, expected string, severity string, run_id string, checked_at timestamp"
 out = spark.createDataFrame(results, schema)          # build the results table
 out.write.mode("append").option("mergeSchema", "true").format("delta").saveAsTable("dbo.dq_results")
-out.select("check_id", "status", "severity", "observed", "expected").show(40, truncate=False)
+out.select("check_id", "status", "severity", "observed", "expected").show(10, truncate=False)
 
 # Fail loudly on blocking checks only
 failed = [r[0] for r in results if r[3] == "FAIL" and r[6] == "error"]   # r[3]=status, r[6]=severity
 if failed:
     raise AssertionError(f"Bronze verification failed: {failed}")
 
-
-# One-off backfill: rows written before the severity column existed get the severity
-# their check has today, so monitoring never reads NULL as "no failure".
-spark.sql("""
-  UPDATE lh_bronze.dbo.dq_results
-  SET severity = CASE WHEN check_id LIKE 'audio_sha1_%' THEN 'warn' ELSE 'error' END
-  WHERE severity IS NULL
-""")
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# jsonschema isn't in the default Fabric runtime image (unverified: confirm this
-# actually runs here, and drop the cell if it turns out to already be installed).
-%pip install jsonschema -q
 
 # METADATA ********************
 
@@ -305,13 +373,12 @@ import json, uuid
 import yaml, jsonschema
 from datetime import datetime, timezone
 
-run_id, now = str(uuid.uuid4()), datetime.now(timezone.utc)
 BASE = "/lakehouse/default/Files/he-raw/"   # the shortcut as a local folder
 results = []
 
 def record(check_id, layer, table, ok, observed, expected, severity="error"):
     results.append((check_id, layer, table, "PASS" if ok else "FAIL",
-                    str(observed), str(expected), severity, run_id, now))
+                    str(observed), str(expected), severity, RUN_ID, RUN_STARTED_AT))
 
 with open(BASE + "_contracts/courtlistener_audio.yaml") as f:
     cl_contract = yaml.safe_load(f)
@@ -328,14 +395,22 @@ CHECKS = [
 
 for table, schema, unwrap in CHECKS:
     for row in spark.table(f"dbo.{table}").select("s3_key", "payload").collect():
-        data = json.loads(row.payload)
-        record_data = unwrap(data) if unwrap else data
         try:
+            data = json.loads(row.payload)
+            record_data = unwrap(data) if unwrap else data
             jsonschema.validate(instance=record_data, schema=schema)
             record(f"contract_{table}_{row.s3_key}", "bronze", table, True, "valid", "valid")
+        except json.JSONDecodeError as e:
+            record(f"contract_{table}_{row.s3_key}", "bronze", table,
+                   False, f"malformed JSON: {e}", "valid-json")
+        except (TypeError, KeyError, IndexError) as e:
+            record(f"contract_{table}_{row.s3_key}", "bronze", table,
+                   False, f"unexpected shape: {e}", "shape")
         except jsonschema.ValidationError as e:
             record(f"contract_{table}_{row.s3_key}", "bronze", table,
                    False, e.message, "schema-valid")
+
+
 
 dq_schema = "check_id string, layer string, table_name string, status string, " \
             "observed string, expected string, severity string, run_id string, checked_at timestamp"
@@ -372,10 +447,6 @@ for t in ["brz_object_manifest", "brz_docket", "brz_audio_meta",
 
 # CELL ********************
 
-# Top-level keys of one Oyez case JSON: this is what silver will extract from
-import json
-p = spark.table("dbo.brz_oyez_case").first()["payload"]
-print(list(json.loads(p).keys()))
 
 # METADATA ********************
 
@@ -386,13 +457,6 @@ print(list(json.loads(p).keys()))
 
 # CELL ********************
 
-# One-off backfill: rows written before the severity column existed get the severity
-# their check has today, so monitoring never reads NULL as "no failure".
-spark.sql("""
-  UPDATE lh_bronze.dbo.dq_results
-  SET severity = CASE WHEN check_id LIKE 'audio_sha1_%' THEN 'warn' ELSE 'error' END
-  WHERE severity IS NULL
-""")
 
 # METADATA ********************
 
