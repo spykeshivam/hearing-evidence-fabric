@@ -19,7 +19,7 @@ Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Fa
 
 ## Architecture and decisions
 - S3 (eu-north-1, private) -> OneLake shortcut (read-only, Files/raw in lh_bronze) -> medallion across three lakehouses (lh_bronze, lh_silver, lh_gold) in workspace ws-hearing-evidence-dev.
-- Bronze: raw plus lineage columns, append-only, incremental by sha256 manifest. Silver: typed, cleaned, resolved. Gold: star schema (dim_date, court, case, party, speaker, hearing, audio_file, citation; fact_utterance, fact_citation_mention; bridges) plus an evidence index.
+- Bronze: raw plus lineage columns, append-only, incremental by sha256 manifest. Silver: typed, cleaned, resolved. Gold: star schema (dim_date, court, case, party, speaker, hearing, audio_file, citation; fact_utterance, fact_citation_mention; bridges) plus an evidence index. dim_case is built from slv_hearing and assumes one hearing per case (check docs/decisions.md, 2026-11-11 for more details).
 - Audio: librosa quality gate with quarantine.
 - Transcripts: Oyez reference turns are the source for fact_utterance and the speaking-time tile; citation extraction runs on Oyez transcript text.
 - NLP: rapidfuzz name resolution against panel and advocates; eyecite vs an LLM extractor (pydantic validation) scored on 40 hand-labelled utterances.
