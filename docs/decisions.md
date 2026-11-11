@@ -21,6 +21,24 @@ Template:
 
 ---
 
+## 2026-11-11: dim_case assumes one hearing per case
+
+**Decision:** Gold's `dim_case` is built from `slv_hearing`, not a case-level table. Leave
+this as-is for now.
+
+**Why:** Every case in the current four-hearing dataset has exactly one oral argument, so
+case attributes (name, term, parties) sitting on the hearing row works today. It stops
+working the moment a case with more than one hearing is added, since `dim_case` would then
+get duplicate or inconsistent rows for that case.
+
+**Alternatives considered:** Building a case-grain `slv_case` table now, parsed from the
+Oyez case JSON already in bronze. Tracked as issue #33 instead of building it now, since no
+case in the current dataset needs it.
+
+**Result:** Revisit when a multi-hearing case is added to the dataset. See issue #33.
+
+---
+
 ## 2026-10-30: fetch_and_stage.py loads CL_TOKEN/HE_BUCKET from .env automatically
 
 **Decision:** Added `src/hearing_evidence/env.py` (`load_dotenv_file`), a thin
