@@ -1,0 +1,7 @@
+role GeneralCounsel
+	modelPermission: read
+
+	tablePermission dim_case = [is_restricted] == false()
+
+	annotation PBI_Id = b71e94a38b6b43d09fa0bec4c05a7c25
+

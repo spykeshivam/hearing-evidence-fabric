@@ -1,0 +1,51 @@
+table dim_speaker
+	lineageTag: d14f79b4-3066-4763-89a5-67dd6c47597c
+	sourceLineageTag: [dbo].[dim_speaker]
+
+	column speaker_key
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 298ec7d9-d48c-4b40-9c4a-29bb663aa53d
+		sourceLineageTag: speaker_key
+		summarizeBy: none
+		sourceColumn: speaker_key
+
+		changedProperty = IsHidden
+
+		annotation SummarizationSetBy = Automatic
+
+	column speaker_id
+		dataType: string
+		lineageTag: 59739767-c386-4caa-a17f-726685c2eab2
+		sourceLineageTag: speaker_id
+		summarizeBy: none
+		sourceColumn: speaker_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column speaker_name
+		dataType: string
+		lineageTag: 5e533a5d-10ae-4d09-84c8-8ad42d786119
+		sourceLineageTag: speaker_name
+		summarizeBy: none
+		sourceColumn: speaker_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column role
+		dataType: string
+		lineageTag: 9de7990c-3d1e-4d87-997e-28aa4448f3f1
+		sourceLineageTag: role
+		summarizeBy: none
+		sourceColumn: role
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_speaker = entity
+		mode: directLake
+		source
+			entityName: dim_speaker
+			schemaName: dbo
+			expressionSource: 'DirectLake - lh_gold'
+

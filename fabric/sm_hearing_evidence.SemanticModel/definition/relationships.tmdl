@@ -1,0 +1,16 @@
+relationship b7f47ddc-8f30-e950-787e-cb7ba9f83a66
+	fromColumn: fact_utterance.case_key
+	toColumn: dim_case.case_key
+
+relationship aea58714-42bb-0109-6cea-1700413f3008
+	fromColumn: fact_utterance.speaker_key
+	toColumn: dim_speaker.speaker_key
+
+relationship a4403347-a100-b6fe-9d1e-363eb49bf9d4
+	fromColumn: fact_utterance.hearing_key
+	toColumn: dim_hearing.hearing_key
+
+relationship a72ad309-2108-9ba1-5c8c-06af063b3af7
+	fromColumn: gold_evidence_index.docket
+	toColumn: dim_case.docket
+
