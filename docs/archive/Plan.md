@@ -1,3 +1,7 @@
+> Archived: the original plan written before the build. It includes work that was not built
+> (audio quality gate, citation extraction, Terraform, evaluation). For the current architecture,
+> see the README.
+
 # Hearing Evidence: Fabric Legal-Audio POC Plan
 
 Oct 13, 2026 · @Shiv

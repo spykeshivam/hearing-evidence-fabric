@@ -9,7 +9,7 @@
 
 ## Project
 A legal-tech data engineering POC in Microsoft Fabric linking court hearing audio (unstructured) to case records (structured).
-Repo: github.com/spykeshivam/hearing-evidence-fabric (public). Layout: contracts/, ontology/, scripts/, src/hearing_evidence/, tests/, fabric/ (Git-synced), eval/labels/, terraform/, docs/.
+Repo: github.com/spykeshivam/hearing-evidence-fabric (public). Layout: contracts/, scripts/, src/hearing_evidence/, tests/, fabric/ (Git-synced), docs/.
 
 ## Data (all public)
 Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Facebook v. Amalgamated Bank (23-980, term 2024), Gonzalez v. Google (21-1333, term 2022), Twitter v. Taamneh (21-1496, term 2022).
@@ -18,15 +18,15 @@ Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Fa
 - Licences: Oyez is CC BY-NC 4.0 (attribute, non-commercial, no endorsement implied). CourtListener terms: no explicit data licence; respect rate limits, one account, never share the token. Transcript text is Oyez's own published transcript; label speaker resolution and citation extractions as our own AI outputs. Keep Oyez files out of the repo.
 
 ## Architecture and decisions
-- S3 (eu-north-1, private) -> OneLake shortcut (read-only, Files/raw in lh_bronze) -> medallion across three lakehouses (lh_bronze, lh_silver, lh_gold) in workspace ws-hearing-evidence-dev.
-- Bronze: raw plus lineage columns, append-only, incremental by sha256 manifest. Silver: typed, cleaned, resolved. Gold: star schema (dim_date, court, case, party, speaker, hearing, audio_file, citation; fact_utterance, fact_citation_mention; bridges) plus an evidence index. dim_case is built from slv_hearing and assumes one hearing per case (check docs/decisions.md, 2026-11-11 for more details).
-- Audio: librosa quality gate with quarantine.
-- Transcripts: Oyez reference turns are the source for fact_utterance and the speaking-time tile; citation extraction runs on Oyez transcript text.
-- NLP: rapidfuzz name resolution against panel and advocates; eyecite vs an LLM extractor (pydantic validation) scored on 40 hand-labelled utterances.
+- fetch_and_stage.py -> S3 (eu-north-1, private) -> OneLake shortcut (read-only, Files/he-raw in lh_bronze) -> medallion across three lakehouses (lh_bronze, lh_silver, lh_gold) in workspace ws-hearing-evidence-dev.
+- Bronze (nb_01_bronze_ingest): raw plus lineage columns, append-only, incremental by sha256 manifest; verifies every MP3's hash against the manifest.
+- Silver (nb_02_silver): promotes only verified hearings; builds speaker turns, hearings (with audio duration measured from the MP3) and case participants with their side, from Oyez reference turns and CourtListener metadata.
+- Gold (nb_03_gold): builds only from a passing silver run. Star schema at turn grain (fact_utterance, dim_case, dim_hearing, dim_speaker) plus gold_evidence_index for search. dim_case is built from slv_hearing and assumes one hearing per case (check docs/decisions.md, 2026-11-11 for more details).
+- Each layer writes its checks to a dq_results table and stops on a blocking failure.
 - Governance and quality: YAML data contracts per source, sha256 and provenance columns, restricted-case row-level security in the semantic model, per-layer data-quality checks that fail on zero rows.
-- Fabric items: Spark notebooks, one Data Factory pipeline with gates, SQL endpoint, Direct Lake semantic model, Git integration. Skipped on purpose: Warehouse, Purview, Fabric IQ ontology (preview), Dataflows, MLflow.
-- Deliverables: report tiles (speaking-time split, citation F1), pipeline health page, restricted-case demo, evidence search.
-- Terraform at the end: workspace, role assignment, three lakehouses; destroy and rebuild test.
+- Fabric items: Spark notebooks, SQL endpoint, Direct Lake semantic model (sm_hearing_evidence), report (rpt_hearing_evidence), Git integration. Skipped on purpose: Warehouse, Purview, Fabric IQ ontology (preview), Dataflows, MLflow.
+- Deliverables: a report tile for speaking time by case, side and speaker.
+- Out of scope / future work: tracked as GitHub issues in the repo, not listed here.
 
 ## Money and cloud (strict)
 - Own-money budget under 20 GBP. A paid F2 capacity (hearingevidencef2, UK West) runs on Azure free credit. Assign the workspace to it AT CREATION.
@@ -36,13 +36,12 @@ Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Fa
 
 ## Conventions
 - Windows and PowerShell. Use uv (uv sync, uv run ruff check ., uv run ruff format ., uv run pytest). Use Invoke-WebRequest with -UseBasicParsing.
-- Logic goes in src/hearing_evidence/ (tested); scripts only call it. Heavy libraries (librosa, NLP) stay in optional extras. Commit small, branch and PR, keep CI green.
+- Logic goes in src/hearing_evidence/ (tested); scripts only call it. Heavy libraries stay in optional extras. Commit small, branch and PR, keep CI green.
 - Every function gets a docstring: short for a simple one, longer for a complex one, stating what it does (see "Writing docs" for what goes in it).
 - Keep a running log in docs/decisions.md.
 
 ## Current state
-Done: repo and skeleton pushed; uv, ruff, pytest and CI added; AWS bucket and uploader tested; CourtListener and Hugging Face tokens work; Azure subscription and paused F2 capacity exist; Oyez and CourtListener probes worked; scripts/fetch_and_stage.py written (fetches the four hearings, writes a sha256 manifest, uploads to S3).
-Next: finish the dry run (python scripts/fetch_and_stage.py --no-upload), then upload; write the contract YAMLs and their field lists; then Fabric day 1 (workspace on the capacity, three lakehouses, S3 shortcut, bronze notebooks, librosa quality gate).
+Done: uv, ruff, pytest and CI in place; AWS bucket, uploader and CourtListener token tested; scripts/fetch_and_stage.py fetches the four hearings, writes a sha256 manifest and uploads to S3; workspace ws-hearing-evidence-dev on the paused F2 capacity, with three lakehouses and an S3 shortcut at Files/he-raw; nb_01_bronze_ingest, nb_02_silver and nb_03_gold built and running end to end; sm_hearing_evidence (Direct Lake) and rpt_hearing_evidence built over gold.
 Note: the project folder still sits inside OneDrive; move it to C:\dev.
 
 ## Working agreement
