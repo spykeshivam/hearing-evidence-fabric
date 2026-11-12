@@ -34,7 +34,7 @@ from pathlib import Path
 from hearing_evidence.contracts import load_contract, stage_contracts
 from hearing_evidence.env import load_dotenv_file
 from hearing_evidence.hashing import sha256_of
-from hearing_evidence.manifest import MANIFEST_COLUMNS
+from hearing_evidence.manifest import manifest_columns
 from hearing_evidence.s3_verify import verify_objects
 
 # "Staging area" is a holding folder where files wait,
@@ -53,6 +53,8 @@ LICENCE = {
     "courtlistener": load_contract(CONTRACTS / "courtlistener_audio.yaml")["licence"]["id"],
     "oyez": load_contract(CONTRACTS / "oyez_transcripts.yaml")["licence"]["id"],
 }
+# manifest column order, read from its contract so it can't drift from it either
+MANIFEST_COLUMNS = manifest_columns(load_contract(CONTRACTS / "object_manifest.yaml"))
 
 HEARINGS = [
     {"term": 2024, "docket": "23-970", "audio_id": 95225},  # NVIDIA

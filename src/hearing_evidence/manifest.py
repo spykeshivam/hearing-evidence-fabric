@@ -1,17 +1,8 @@
-"""Column names for the per-batch S3 object manifest (objects.csv).
+"""Derive the S3 object manifest's (objects.csv) column order from its data contract."""
 
-Mirrors contracts/object_manifest.yaml; keep both in sync.
-"""
+from typing import Any
 
-MANIFEST_COLUMNS = (
-    "batch_id",
-    "s3_key",
-    "source",
-    "kind",
-    "source_url",
-    "retrieved_at",
-    "bytes",
-    "sha256",
-    "licence_id",
-    "upload_status",
-)
+
+def manifest_columns(contract: dict[str, Any]) -> tuple[str, ...]:
+    """Return column names, in order, from a loaded object_manifest.yaml contract."""
+    return tuple(col["name"] for col in contract["columns"])
