@@ -15,12 +15,24 @@ table fact_utterance
 
 		changedProperty = Name
 
-	measure 'Share of Hearing' = DIVIDE ( [Speaking Minutes], CALCULATE ( [Speaking Minutes], REMOVEFILTERS ( fact_utterance[side] ) ) )
+	measure 'Share of Hearing' =
+			
+			DIVIDE (
+			    [Speaking Minutes],
+			    CALCULATE (
+			        [Speaking Minutes],
+			        REMOVEFILTERS (),
+			        VALUES ( dim_case[docket] )
+			    )
+			)
+		formatString: 0.00%;-0.00%;0.00%
 		lineageTag: 570da1ae-87ce-4915-a11e-f8beab32acf2
 
 		changedProperty = Name
 
-		annotation PBI_FormatHint = {"isGeneralNumber":true}
+		changedProperty = IsHidden
+
+		changedProperty = FormatString
 
 	measure 'Words per Minute' = DIVIDE ( SUM ( fact_utterance[word_count] ), [Speaking Minutes] )
 		lineageTag: 667d7cf1-e303-4a83-b1d1-3c0ad14ec3cf

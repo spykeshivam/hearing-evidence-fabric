@@ -70,6 +70,20 @@
               },
               "queryRef": "fact_utterance.Words per Minute",
               "nativeQueryRef": "Words per Minute"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "fact_utterance"
+                    }
+                  },
+                  "Property": "Share of Hearing"
+                }
+              },
+              "queryRef": "fact_utterance.Share of Hearing",
+              "nativeQueryRef": "Share of Hearing"
             }
           ]
         }
@@ -131,6 +145,20 @@
               }
             },
             "Property": "Words per Minute"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "cf85f15b5501190a8511",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "fact_utterance"
+              }
+            },
+            "Property": "Share of Hearing"
           }
         },
         "type": "Advanced"
