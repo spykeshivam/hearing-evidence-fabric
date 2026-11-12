@@ -24,7 +24,6 @@
 
 # jsonschema isn't in the default Fabric runtime image (unverified: confirm this
 # actually runs here, and drop the cell if it turns out to already be installed).
-# %pip install jsonschema
 
 # METADATA ********************
 
