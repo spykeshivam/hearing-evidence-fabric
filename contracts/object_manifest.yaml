@@ -1,0 +1,58 @@
+source_id: object_manifest
+owner: shiv
+description: Per-batch record of every file staged by scripts/fetch_and_stage.py
+source_url: data/stage/_manifests/batch=<batch_id>/objects.csv (local); s3://<bucket>/_manifests/batch=<batch_id>/objects.csv (published)
+classification: public record; provenance ledger only, no evidence content
+refresh: one manifest per fetch_and_stage.py run, one row per file currently staged
+
+provenance:
+  ledger: >
+    data/stage/_provenance.json is the local record of every fetched file, keyed
+    by its s3_key, holding source_url, retrieved_at, source and kind. It is never
+    uploaded to S3.
+  manifest: >
+    objects.csv is rebuilt from the provenance ledger on every run: one row per
+    file currently on disk, with bytes, sha256 and upload_status computed fresh
+    each time. It is the published record Fabric reads; the ledger is not.
+
+columns:
+  - name: batch_id
+    type: string
+    nullable: false
+    description: UTC timestamp (YYYYMMDDTHHMMSSZ) of the run that wrote this manifest.
+  - name: s3_key
+    type: string
+    nullable: false
+    description: Object path in the bucket.
+  - name: source
+    type: string
+    nullable: false
+    description: courtlistener or oyez.
+  - name: kind
+    type: string
+    nullable: false
+    description: docket, audio_meta, audio, case or transcript.
+  - name: source_url
+    type: string
+    nullable: false
+    description: Address the file was fetched from.
+  - name: retrieved_at
+    type: string
+    nullable: false
+    description: UTC time the file was downloaded, taken from the provenance ledger and unchanged by reruns.
+  - name: bytes
+    type: integer
+    nullable: false
+    description: File size in bytes.
+  - name: sha256
+    type: string
+    nullable: false
+    description: Fingerprint of the file content, computed when the manifest is written.
+  - name: licence_id
+    type: string
+    nullable: false
+    description: Licence identifier of the source.
+  - name: upload_status
+    type: string
+    nullable: true
+    description: S3 verification result (uploaded, size_mismatch, missing, not_attempted).
