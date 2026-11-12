@@ -82,7 +82,7 @@ Each layer writes its check results to a `dq_results` table and stops on any blo
 
 ### 4. Power BI
 
-[`sm_hearing_evidence`](fabric/sm_hearing_evidence.SemanticModel) is a Direct Lake semantic model over gold, with measures (Speaking Minutes, Turns, Words per Minute, Share of Hearing) and a row-level-security role for restricted matters. [`rpt_hearing_evidence`](fabric/rpt_hearing_evidence.Report) shows speaking time by case, side and speaker.
+[`sm_hearing_evidence`](fabric/sm_hearing_evidence.SemanticModel) is a Direct Lake semantic model over gold, with measures (Speaking Minutes, Turns, Words per Minute, Share of Hearing) and a row-level-security role for restricted matters. [`rpt_hearing_evidence`](fabric/rpt_hearing_evidence.Report) shows speaking time by case, side and speaker. The model's tables, relationships, measures and security are documented in [`docs/semantic_model.md`](docs/semantic_model.md).
 
 ## Limitations
 
