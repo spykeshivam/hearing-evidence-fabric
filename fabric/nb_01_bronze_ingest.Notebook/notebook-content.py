@@ -20,22 +20,31 @@
 # META   }
 # META }
 
+# MARKDOWN ********************
+
+# ## nb_01_bronze_ingest: land raw files in bronze
+# 
+# Loads every staged source file into `lh_bronze` as received: one row per file, JSON kept verbatim in `payload`, plus provenance (sha256, source URL, licence) and lineage columns (`_run_id`, `_ingested_at`). Tables are append-only.
+# 
+# **Inputs** (`Files/he-raw/`, the read-only S3 shortcut)
+# - `_manifests/batch=*/objects.csv`: sha256 manifest of each fetch run
+# - `courtlistener/dockets/`, `courtlistener/audio_meta/`, `oyez/cases/`, `oyez/transcripts/`: raw JSON
+# - `courtlistener/audio/`: hearing MP3s
+# - `_contracts/*.yaml`: data contracts
+# 
+# **Outputs** (`lh_bronze.dbo`)
+# - `brz_object_manifest`, `brz_docket`, `brz_audio_meta`, `brz_oyez_case`, `brz_oyez_transcript`
+# - `dq_results`: one row per check, tagged with this run's `RUN_ID`
+# 
+# **Checks** (error stops the run, warn is logged only)
+# - MP3 sha256 equals the manifest sha256 (error)
+# - MP3 sha1 equals CourtListener's sha1 (warn)
+# - each raw JSON payload matches its data contract (error)
+# 
+# **Run**: default lakehouse `lh_bronze`, Run all. Safe to rerun: batches and files already loaded (same `s3_key` and sha256) are skipped.
+
 # CELL ********************
 
-# jsonschema isn't in the default Fabric runtime image (unverified: confirm this
-# actually runs here, and drop the cell if it turns out to already be installed).
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# Welcome to your new notebook
-# Type here in the cell editor to add code!
 for f in notebookutils.fs.ls("Files/he-raw/courtlistener/audio"):
     print(f.name, round(f.size / 1e6, 1), "MB")
 

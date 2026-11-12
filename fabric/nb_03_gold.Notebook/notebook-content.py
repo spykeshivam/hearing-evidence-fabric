@@ -23,10 +23,36 @@
 # META   }
 # META }
 
+# MARKDOWN ********************
+
+# ## nb_03_gold: star schema and evidence index
+# 
+# Builds the gold star schema at speaker-turn grain and the evidence index used for search and the semantic model `sm_hearing_evidence`.
+# 
+# **Inputs**
+# - `lh_silver.dbo.slv_turn`, `slv_hearing`, `slv_case_participant`
+# - `lh_silver.dbo.dq_results`: latest silver check run
+# 
+# **Outputs** (`lh_gold`)
+# - `dbo.ref_matter_access`: simulated list of restricted matters
+# - `dbo.dim_case`, `dbo.dim_hearing`, `dbo.dim_speaker`: dimensions with deterministic surrogate keys
+# - `dbo.fact_utterance`: one speaker turn
+# - `dbo.gold_evidence_index`: one utterance with text, speaker, side, timestamped audio link and `evidence_hash`
+# - `ops.dq_results`
+# 
+# **Gate**: builds only if the latest silver check run has no blocking failure.
+# 
+# **Checks** (error stops the run, warn is logged only)
+# - every surrogate key is unique (error)
+# - every fact foreign key resolves to its dimension (error)
+# - fact rows equal silver turns, and evidence-index rows equal fact rows (error)
+# - Unknown-speaker share below 5% (warn)
+# - the evidence index's restricted flag matches `dim_case` (error)
+# 
+# **Run**: default lakehouse `lh_silver`, Run all, after a passing silver run.
+
 # CELL ********************
 
-# Welcome to your new notebook
-# Type here in the cell editor to add code!
 """
 promotion gate.
 

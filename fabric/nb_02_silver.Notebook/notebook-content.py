@@ -23,6 +23,35 @@
 # META   }
 # META }
 
+# MARKDOWN ********************
+
+# ## nb_02_silver: type, clean and resolve
+# 
+# Promotes verified hearings from bronze to `lh_silver`: parses the Oyez transcript JSON into speaker turns, builds one row per hearing with the audio duration measured from the MP3, and resolves every speaker to a case participant with a role and side.
+# 
+# **Inputs**
+# - `lh_bronze.dbo.brz_*`: latest version of each raw file
+# - `lh_bronze.dbo.dq_results`: latest bronze check run
+# - hearing MP3s through the bronze shortcut (duration via `mutagen`)
+# 
+# **Outputs** (`lh_silver.dbo`)
+# - `slv_turn`: one speaker turn
+# - `slv_hearing`: one oral argument
+# - `slv_case_participant`: one person per case, with role and side
+# - `dq_results`
+# 
+# **Gate**: promotes only dockets whose MP3 sha256 check passed in the latest bronze run.
+# 
+# **Checks** (error stops the run, warn is logged only)
+# - each hearing has turns, and every turn has stop >= start (error)
+# - last transcript stop within 30 s of the measured audio duration (error)
+# - reported duration within 30 s of the measured duration (warn)
+# - speaker-name null rate below 5% (warn)
+# - at least 95% of turns resolve to a case participant (error)
+# - every advocate has a known side (warn)
+# 
+# **Run**: default lakehouse `lh_bronze`, Run all, after a passing bronze run. The first cell installs `mutagen`, which restarts the Python session.
+
 # CELL ********************
 
 # Session setup: install libraries first, because %pip restarts the Python process
