@@ -34,6 +34,7 @@ from pathlib import Path
 from hearing_evidence.contracts import load_contract, stage_contracts
 from hearing_evidence.env import load_dotenv_file
 from hearing_evidence.hashing import sha256_of
+from hearing_evidence.manifest import manifest_columns
 from hearing_evidence.s3_verify import verify_objects
 
 # "Staging area" is a holding folder where files wait,
@@ -52,6 +53,8 @@ LICENCE = {
     "courtlistener": load_contract(CONTRACTS / "courtlistener_audio.yaml")["licence"]["id"],
     "oyez": load_contract(CONTRACTS / "oyez_transcripts.yaml")["licence"]["id"],
 }
+# manifest column order, read from its contract so it can't drift from it either
+MANIFEST_COLUMNS = manifest_columns(load_contract(CONTRACTS / "object_manifest.yaml"))
 
 HEARINGS = [
     {"term": 2024, "docket": "23-970", "audio_id": 95225},  # NVIDIA
@@ -319,9 +322,14 @@ def main():
 
 
 def write_manifest(mdir, rows):
-    """Write rows to <mdir>/objects.csv, overwriting any manifest already there."""
+    """Write rows to <mdir>/objects.csv, overwriting any manifest already there.
+
+    Columns are fixed to MANIFEST_COLUMNS (see contracts/object_manifest.yaml),
+    so a row with an extra or missing key fails loudly here instead of
+    producing a manifest that's silently out of step with the contract.
+    """
     with open(mdir / "objects.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w = csv.DictWriter(f, fieldnames=MANIFEST_COLUMNS, extrasaction="raise")
         w.writeheader()
         w.writerows(rows)
 
