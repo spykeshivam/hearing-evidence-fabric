@@ -293,12 +293,10 @@ spark.sql("DESCRIBE HISTORY dbo.brz_oyez_transcript").select("version", "timesta
 # CELL ********************
 
 # =====================================================================
-# nb_01_bronze_ingest | cell: verify audio fingerprints, reconcile counts
+# nb_01_bronze_ingest | cell: verify audio fingerprints
 # Checks (each result is one row in dbo.dq_results):
 #  1. MP3 sha256 equals the manifest sha256 (the file we hold is the file listed)
 #  2. MP3 sha1 equals CourtListener's own sha1 (independent integrity check)
-#  3. each raw bronze table has one row per manifest file of its kind
-#  4. no bronze table is empty (the "load succeeded with zero rows" failure)
 # =====================================================================
 import hashlib, uuid
 from datetime import datetime, timezone
@@ -340,7 +338,6 @@ for r in man.filter("kind = 'audio'").collect():
            s1 == cl_sha1.get(docket), s1[:12], str(cl_sha1.get(docket))[:12],
            severity="warn")   # CourtListener’s sha1 identifies the source file, not the served MP3
 
-# Reconcile and zero-row guard for each raw table.
 schema = "check_id string, layer string, table_name string, status string, " \
          "observed string, expected string, severity string, run_id string, checked_at timestamp"
 out = spark.createDataFrame(results, schema)          # build the results table
