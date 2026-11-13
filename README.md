@@ -10,7 +10,7 @@ Every one of 1,971 speaker turns is attributed to a person and to the side they 
 
 Eleven tech-related US Supreme Court oral arguments: 23-970 NVIDIA, 23-980 Facebook, 21-1333 Gonzalez v. Google, 21-1496 Twitter v. Taamneh, 10-290 Microsoft v. i4i, 08-1448 Brown v. Entertainment Merchants, 10-1259 United States v. Jones, 11-1025 Clapper v. Amnesty International, 16-341 TC Heartland v. Kraft, 15-777 Samsung v. Apple, 15-1194 Packingham v. North Carolina.
 
-Inclusion rule: a case is included when it has exactly one oral argument, not shared with another docket, with one audio file linked on CourtListener.
+Inclusion rule: a case is included when it has exactly one oral argument, not shared with another docket, with one audio file linked on CourtListener. The hearing list lives in [`config/hearings.yaml`](config/hearings.yaml).
 
 | Source | Provides | Licence |
 | --- | --- | --- |

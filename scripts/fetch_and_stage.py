@@ -1,8 +1,8 @@
 """Stage SCOTUS (Supreme Court of the United States) hearing evidence for the pipeline.
 
 Loads CL_TOKEN and HE_BUCKET from .env on startup (see load_dotenv_file), falling
-back to whatever is already exported in the shell. For each docket in HEARINGS,
-this script:
+back to whatever is already exported in the shell. For each hearing listed in
+config/hearings.yaml, this script:
   1. Looks up the docket on CourtListener and resolves its linked oral-argument audio,
      skipping any docket that links more than one audio file.
   2. Downloads that audio's metadata JSON, then the MP3 itself from CourtListener's storage CDN.
@@ -35,6 +35,7 @@ from pathlib import Path
 from hearing_evidence.contracts import load_contract, stage_contracts
 from hearing_evidence.env import load_dotenv_file
 from hearing_evidence.hashing import sha256_of
+from hearing_evidence.hearings import load_hearings
 from hearing_evidence.s3_verify import verify_objects
 
 # "Staging area" is a holding folder where files wait,
@@ -54,24 +55,8 @@ LICENCE = {
     "oyez": load_contract(CONTRACTS / "oyez_transcripts.yaml")["licence"]["id"],
 }
 
-HEARINGS = [
-    {"term": 2024, "docket": "23-970", "audio_id": 95225},  # NVIDIA
-    {"term": 2024, "docket": "23-980", "audio_id": None},  # Facebook
-    {"term": 2022, "docket": "21-1333", "audio_id": None},  # Gonzalez v. Google
-    {"term": 2022, "docket": "21-1496", "audio_id": None},  # Twitter v. Taamneh
-    {"term": 2010, "docket": "10-290", "audio_id": None},  # Microsoft v. i4i
-    {"term": 2010, "docket": "08-1448", "audio_id": None},  # Brown v. Entertainment Merchants
-    {"term": 2011, "docket": "10-1259", "audio_id": None},  # United States v. Jones
-    {"term": 2012, "docket": "11-1025", "audio_id": None},  # Clapper v. Amnesty International
-    {"term": 2013, "docket": "13-298", "audio_id": None},  # Alice Corp. v. CLS Bank
-    {"term": 2013, "docket": "13-461", "audio_id": None},  # ABC v. Aereo
-    {"term": 2014, "docket": "13-983", "audio_id": None},  # Elonis v. United States
-    {"term": 2015, "docket": "13-1339", "audio_id": None},  # Spokeo v. Robins
-    {"term": 2016, "docket": "16-341", "audio_id": None},  # TC Heartland v. Kraft Food Brands
-    {"term": 2016, "docket": "15-777", "audio_id": None},  # Samsung v. Apple
-    {"term": 2016, "docket": "15-1194", "audio_id": None},  # Packingham v. North Carolina
-    {"term": 2017, "docket": "16-402", "audio_id": None},  # Carpenter v. United States
-]
+# The hearings to fetch, one {term, docket, name} entry each; see config/hearings.yaml.
+HEARINGS = load_hearings(Path("config/hearings.yaml"))
 
 # The provenance ledger: one entry per fetched file, recording where it came from
 # (url), when it was fetched (retrieved_at), and which source/kind it is. See
@@ -211,7 +196,7 @@ def main():
             # (a list of CourtListener audio-endpoint URLs).
             files = res["results"][0].get("audio_files") or []
             if not files:
-                # TODO: fallback (e.g. h["audio_id"]) not implemented yet
+                # TODO: audio-lookup fallback; check docs/decisions.md, 2026-10-19 for more details
                 print("  no audio linked to this docket, skipping")
                 continue
             if len(files) > 1:
