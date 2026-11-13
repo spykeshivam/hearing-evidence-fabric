@@ -51,6 +51,7 @@
 # 
 # **Run**: default lakehouse `lh_silver`, Run all, after a passing silver run.
 
+
 # CELL ********************
 
 """
@@ -219,6 +220,7 @@ g = lambda t: spark.table(f"{GLD}.{t}")
 for t, k in [("dim_case", "case_key"), ("dim_hearing", "hearing_key"), ("dim_speaker", "speaker_key"),
              ("fact_utterance", "utterance_key"), ("gold_evidence_index", "utterance_key")]:
     n, d = g(t).count(), g(t).select(k).distinct().count()
+    print(f"pk_unique_{t}", t, n == d, d, n)
     record(f"pk_unique_{t}", t, n == d, d, n)
 
 # Referential integrity: every fact foreign key exists in its dimension (left_anti = orphans)

@@ -52,6 +52,7 @@
 # 
 # **Run**: default lakehouse `lh_bronze`, Run all, after a passing bronze run. The first cell installs `mutagen`, which restarts the Python session.
 
+
 # CELL ********************
 
 # Session setup: install libraries first, because %pip restarts the Python process
@@ -106,20 +107,9 @@ verified = (dq.filter((F.col("run_id") == last_run)
                       & F.col("check_id").startswith("audio_sha256_")
                       & (F.col("status") == "PASS")))
 
-dockets_verified=verified.select(F.regexp_extract("check_id", r"(\d{2}-\d+)", 1).alias("docket"))
+dockets_verified = verified.select(F.regexp_extract("check_id", r"(\d{2}-\d+)", 1).alias("docket")).distinct()
 
 print("verified dockets:", [r.docket for r in dockets_verified.collect()])
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-verified.show()
 
 # METADATA ********************
 
@@ -263,6 +253,16 @@ display(spark.table(f"{SLV}.slv_hearing").groupBy("docket").count())
 
 # CELL ********************
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 df = spark.table(f"{SLV}.slv_hearing")
 print(f"=== {SLV}.slv_hearing: {df.count()} rows | grain/columns: {df.columns}")
 # Lineage columns are hidden in the preview; they stay in the table
@@ -362,6 +362,12 @@ def record(check_id, table, ok, observed, expected, severity="error"):
     """Append one check result; severity 'error' blocks promotion, 'warn' is logged only."""
     results.append((check_id, "silver", table, "PASS" if ok else "FAIL",
                     str(observed), str(expected), severity, run_id, now))
+
+# Grain (blocking): one row per docket in slv_hearing
+h = spark.table(f"{SLV}.slv_hearing")
+n, d = h.count(), h.select("docket").distinct().count()
+record("pk_unique_slv_hearing", "slv_hearing", n == d, n, d)
+
 
 # One aggregate row per hearing: compute in Spark, then bring 4 small rows to the driver.
 stats = (spark.table(f"{SLV}.slv_turn").groupBy("docket").agg(
