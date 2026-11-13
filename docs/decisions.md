@@ -21,6 +21,47 @@ Template:
 
 ---
 
+## 2026-11-13: Contracts are strict only for fields silver reads
+
+**Decision:** In `contracts/*.yaml`, fields that silver reads keep a strict type
+(audio_meta `duration`, `local_path_mp3`; Oyez case `name`, `term`, `first_party`,
+`second_party`, `advocates`, `heard_by`; transcript turns with `start`, `stop`,
+`speaker.name`, `speaker.identifier`, `text_blocks[].text`). Every other listed field
+may be null. Every listed field must still be present.
+
+**Why:** The contracts were drawn from four 2022-2024 hearings. Adding 2010-2017 hearings
+gave nine bronze contract failures, all on nulls in fields no layer reads: docket
+`date_argued`, `date_filed`, `appeal_from`, `original_court_info` (only on the five dockets
+with no linked audio) and transcript `unavailable`, `damaged` (Oyez leaves both null for
+2010-2012 recordings). A blocking failure should mean the pipeline cannot use the data.
+
+**Alternatives considered:** Per-field `warn` severity in the contract; rejected for now
+since the bronze cell has no per-field severity and nullability alone covers every
+observed failure. Dropping unread fields from `properties`; rejected since listing them
+documents the source shape.
+
+**Result:** All 49 staged files (11 hearings, 5 audio-less dockets) validate locally.
+
+## 2026-11-13: Scope: one oral argument per case
+
+**Decision:** Scope: tech-related SCOTUS cases with exactly one oral argument not shared
+with another docket; multi-argument cases are out of scope (see issue #39). Candidates are
+checked on the Oyez API first (one `oral_argument_audio` entry, no
+`additional_docket_numbers`). `fetch_and_stage.py` also skips any docket whose
+CourtListener record links no audio, or more than one audio file.
+
+**Why:** Gold's `dim_case` assumes one hearing per case (2026-11-11). Keeping that true
+in the data adds cases without new modelling.
+
+**Alternatives considered:** Model multi-argument and consolidated cases; tracked in
+issue #39.
+
+**Result:** 27 candidates checked on Oyez: 25 passed, 2 dropped (13-132 Riley v.
+California, two arguments shared with 13-212; 24-656 TikTok v. Garland, argued with
+24-657). First batch of 12 fetched: 7 staged, 5 skipped with no audio linked on
+CourtListener (13-298, 13-461, 13-983, 13-1339, 16-402). The other 13 wait for a second
+batch.
+
 ## 2026-11-12: Azure OpenAI cross-geo processing enabled for the Fabric data agent
 
 Enabled cross-geo processing and storage for Azure OpenAI so the Fabric data agent works on a
@@ -304,5 +345,6 @@ building the fallback first risked masking a lookup bug.
 rejected since it was one data point (the NVIDIA hearing) and not yet validated
 against the other dockets in `HEARINGS`.
 
-**Result:** _pending — need to run against all four hearings in `HEARINGS` and see
-which ones fall through._
+**Result:** All four original hearings resolve through `audio_files`. In the
+2026-11-13 batch of 12, 5 dockets fell through with no audio linked (13-298, 13-461,
+13-983, 13-1339, 16-402).
