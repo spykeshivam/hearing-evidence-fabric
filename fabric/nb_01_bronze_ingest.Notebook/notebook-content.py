@@ -43,6 +43,7 @@
 # 
 # **Run**: default lakehouse `lh_bronze`, Run all. Safe to rerun: batches and files already loaded (same `s3_key` and sha256) are skipped.
 
+
 # CELL ********************
 
 for f in notebookutils.fs.ls("Files/he-raw/courtlistener/audio"):
@@ -348,9 +349,13 @@ for r in man.filter("kind = 'audio'").collect():
 
 schema = "check_id string, layer string, table_name string, status string, " \
          "observed string, expected string, severity string, run_id string, checked_at timestamp"
-out = spark.createDataFrame(results, schema)          # build the results table
-out.write.mode("append").option("mergeSchema", "true").format("delta").saveAsTable("dbo.dq_results")
-out.select("check_id", "status", "severity", "observed", "expected").show(10, truncate=False)
+
+n_fail = sum(r[3] == "FAIL" for r in results)
+print(f"{len(results)} contract checks, {n_fail} failed")
+if n_fail:
+    out = spark.createDataFrame(results, schema)          # build the results table
+    out.write.mode("append").option("mergeSchema", "true").format("delta").saveAsTable("dbo.dq_results")
+    out.filter("status = 'FAIL'").select("check_id", "status", "severity", "observed", "expected").show(truncate=False)
 
 # Fail loudly on blocking checks only
 failed = [r[0] for r in results if r[3] == "FAIL" and r[6] == "error"]   # r[3]=status, r[6]=severity
@@ -372,18 +377,24 @@ if failed:
 # Source : Files/he-raw/_contracts/*.yaml (staged by fetch_and_stage.py
 #          alongside the evidence, via the same S3 -> OneLake shortcut)
 # Checks : each row's JSON payload matches its contract's `required` fields
-#          and types (jsonschema). One PASS/FAIL per file, into dq_results.
+#          and types (jsonschema). One PASS/FAIL per file, into dq_results;
+#          a FAIL lists every failing field with its path.
 # =====================================================================
 import json, uuid
 import yaml, jsonschema
 from datetime import datetime, timezone
 
 BASE = "/lakehouse/default/Files/he-raw/"   # the shortcut as a local folder
+MAX_ERRORS_SHOWN = 5                        # per file, so one bad array can't flood the table
 results = []
 
 def record(check_id, layer, table, ok, observed, expected, severity="error"):
     results.append((check_id, layer, table, "PASS" if ok else "FAIL",
                     str(observed), str(expected), severity, RUN_ID, RUN_STARTED_AT))
+
+def field(e):
+    """Return the dotted path of the field a schema error points to, e.g. sections.0.turns.3.start."""
+    return ".".join(str(p) for p in e.absolute_path) or "<root>"
 
 with open(BASE + "_contracts/courtlistener_audio.yaml") as f:
     cl_contract = yaml.safe_load(f)
@@ -399,33 +410,46 @@ CHECKS = [
 ]
 
 for table, schema, unwrap in CHECKS:
+    validator = jsonschema.validators.validator_for(schema)(schema)   # same draft validate() would pick
     for row in spark.table(f"dbo.{table}").select("s3_key", "payload").collect():
+        check_id = f"contract_{table}_{row.s3_key}"
         try:
             data = json.loads(row.payload)
             record_data = unwrap(data) if unwrap else data
-            jsonschema.validate(instance=record_data, schema=schema)
-            record(f"contract_{table}_{row.s3_key}", "bronze", table, True, "valid", "valid")
         except json.JSONDecodeError as e:
-            record(f"contract_{table}_{row.s3_key}", "bronze", table,
-                   False, f"malformed JSON: {e}", "valid-json")
+            record(check_id, "bronze", table, False, f"malformed JSON: {e}", "valid-json")
+            continue
         except (TypeError, KeyError, IndexError) as e:
-            record(f"contract_{table}_{row.s3_key}", "bronze", table,
-                   False, f"unexpected shape: {e}", "shape")
-        except jsonschema.ValidationError as e:
-            record(f"contract_{table}_{row.s3_key}", "bronze", table,
-                   False, e.message, "schema-valid")
+            record(check_id, "bronze", table, False, f"unexpected shape: {e}", "shape")
+            continue
 
-
+        errors = sorted(validator.iter_errors(record_data), key=field)
+        if not errors:
+            record(check_id, "bronze", table, True, "valid", "valid")
+            continue
+        shown, more = errors[:MAX_ERRORS_SHOWN], len(errors) - MAX_ERRORS_SHOWN
+        suffix = f" (+{more} more)" if more > 0 else ""
+        observed = "; ".join(f"{field(e)}: {e.message}" for e in shown) + suffix
+        expected = "; ".join(f"{field(e)}: {e.validator}={e.validator_value}" for e in shown) + suffix
+        record(check_id, "bronze", table, False, observed, expected)
 
 dq_schema = "check_id string, layer string, table_name string, status string, " \
             "observed string, expected string, severity string, run_id string, checked_at timestamp"
 out = spark.createDataFrame(results, dq_schema)
 out.write.mode("append").option("mergeSchema", "true").format("delta").saveAsTable("dbo.dq_results")
-out.select("check_id", "status", "observed").show(40, truncate=False)
+
+n_fail = sum(r[3] == "FAIL" for r in results)
+print(f"{len(results)} contract checks, {n_fail} failed")
+if n_fail:
+    display(out.filter("status = 'FAIL'")
+               .select("check_id", "severity", "observed", "expected"))
+
+
 
 failed = [r[0] for r in results if r[3] == "FAIL" and r[6] == "error"]
 if failed:
     raise AssertionError(f"Contract validation failed: {failed}")
+
 
 # METADATA ********************
 

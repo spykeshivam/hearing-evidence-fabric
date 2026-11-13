@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataAgent",
+    "displayName": "da_hearing_evidence"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "d74844ca-1a32-aae1-46b3-055ecd96c285"
+  }
+}
