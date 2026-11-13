@@ -58,9 +58,10 @@ issue #39.
 
 **Result:** 27 candidates checked on Oyez: 25 passed, 2 dropped (13-132 Riley v.
 California, two arguments shared with 13-212; 24-656 TikTok v. Garland, argued with
-24-657). First batch of 12 fetched: 7 staged, 5 skipped with no audio linked on
-CourtListener (13-298, 13-461, 13-983, 13-1339, 16-402). The other 13 wait for a second
-batch.
+24-657). Fetched in two batches (12, then 13): 13 staged, 12 skipped with no audio linked
+on CourtListener (13-298, 13-461, 13-983, 13-1339, 16-402, 16-712, 17-2, 19-631, 18-956,
+19-783, 19-511, 20-297). No docket linked more than one audio file. The dataset holds 17
+hearings.
 
 ## 2026-11-12: Azure OpenAI cross-geo processing enabled for the Fabric data agent
 
@@ -345,6 +346,6 @@ building the fallback first risked masking a lookup bug.
 rejected since it was one data point (the NVIDIA hearing) and not yet validated
 against the other dockets in `HEARINGS`.
 
-**Result:** All four original hearings resolve through `audio_files`. In the
-2026-11-13 batch of 12, 5 dockets fell through with no audio linked (13-298, 13-461,
-13-983, 13-1339, 16-402).
+**Result:** All four original hearings resolve through `audio_files`. Of the 25
+dockets added on 2026-11-13, 12 fell through with no audio linked (every one argued
+between 2014 and 2021); the list is in the 2026-11-13 scope entry.
