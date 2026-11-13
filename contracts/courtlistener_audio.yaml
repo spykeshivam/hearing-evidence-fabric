@@ -20,14 +20,13 @@ required_provenance_fields: [source_url, retrieved_at, sha256, licence_id]
 quality_expectations:
   min_rows_per_batch: 1
   min_sample_rate_hz: 16000
-# schema: drawn from data/stage/courtlistener/{dockets,audio_meta}/*.json for all four
-# staged hearings (23-970, 23-980, 21-1333, 21-1496). Fields that were null or empty
-# in every hearing (CourtListener's generic civil/bankruptcy/appellate docket fields,
-# not applicable to a SCOTUS cert-stage oral argument) are left out of `properties`
-# and allowed through by `additionalProperties: true` rather than modelled here.
+# schema: every listed field must be present. Fields silver reads keep a strict type
+# (audio_meta.duration, audio_meta.local_path_mp3); every other field may be null.
+# Unlisted fields pass through `additionalProperties: true`. Check docs/decisions.md,
+# 2026-11-13 for more details.
 schema:
   # docket: unwrap data["results"][0] first -- CourtListener's docket search endpoint
-  # wraps the single match in a pagination envelope.
+  # wraps the single match in a pagination envelope. Silver reads no docket fields.
   docket:
     type: object
     additionalProperties: true
@@ -38,31 +37,31 @@ schema:
        clusters, panel, tags, source, blocked, appeal_from, appeal_from_str,
        original_court_info]
     properties:
-      id: {type: integer}
-      resource_uri: {type: string}
-      absolute_url: {type: string}
-      court: {type: string}
-      court_id: {type: string}
-      case_name: {type: string}
-      case_name_short: {type: string}
-      docket_number: {type: string}
-      docket_number_core: {type: string}
-      docket_number_raw: {type: string}
-      docket_number_source: {type: integer}
-      slug: {type: string}
-      date_argued: {type: string}
-      date_filed: {type: string}
-      date_created: {type: string}
-      date_modified: {type: string}
-      audio_files: {type: array}
-      clusters: {type: array}
-      panel: {type: array}
-      tags: {type: array}
-      source: {type: integer}
-      blocked: {type: boolean}
-      appeal_from: {type: string}
-      appeal_from_str: {type: string}
-      original_court_info: {type: object}
+      id: {type: [integer, "null"]}
+      resource_uri: {type: [string, "null"]}
+      absolute_url: {type: [string, "null"]}
+      court: {type: [string, "null"]}
+      court_id: {type: [string, "null"]}
+      case_name: {type: [string, "null"]}
+      case_name_short: {type: [string, "null"]}
+      docket_number: {type: [string, "null"]}
+      docket_number_core: {type: [string, "null"]}
+      docket_number_raw: {type: [string, "null"]}
+      docket_number_source: {type: [integer, "null"]}
+      slug: {type: [string, "null"]}
+      date_argued: {type: [string, "null"]}
+      date_filed: {type: [string, "null"]}
+      date_created: {type: [string, "null"]}
+      date_modified: {type: [string, "null"]}
+      audio_files: {type: [array, "null"]}
+      clusters: {type: [array, "null"]}
+      panel: {type: [array, "null"]}
+      tags: {type: [array, "null"]}
+      source: {type: [integer, "null"]}
+      blocked: {type: [boolean, "null"]}
+      appeal_from: {type: [string, "null"]}
+      appeal_from_str: {type: [string, "null"]}
+      original_court_info: {type: [object, "null"]}
   audio_meta:
     type: object
     additionalProperties: true
@@ -72,26 +71,27 @@ schema:
        duration, processing_complete, blocked, panel, date_created, date_modified,
        stt_status]
     properties:
-      id: {type: integer}
-      resource_uri: {type: string}
-      absolute_url: {type: string}
-      docket: {type: string}
-      case_name: {type: string}
-      case_name_short: {type: string}
-      download_url: {type: string}
-      local_path_mp3: {type: string}
-      local_path_original_file: {type: string}
-      sha1: {type: string}
-      source: {type: string}
+      # read by silver
       duration: {type: integer}
-      processing_complete: {type: boolean}
-      blocked: {type: boolean}
-      panel: {type: array}
-      date_created: {type: string}
-      date_modified: {type: string}
-      # null until Colab ASR has run for the hearing
-      filepath_ia: {type: string}
-      stt_status: {type: integer}
+      local_path_mp3: {type: string}
+      # not read by silver
+      id: {type: [integer, "null"]}
+      resource_uri: {type: [string, "null"]}
+      absolute_url: {type: [string, "null"]}
+      docket: {type: [string, "null"]}
+      case_name: {type: [string, "null"]}
+      case_name_short: {type: [string, "null"]}
+      download_url: {type: [string, "null"]}
+      local_path_original_file: {type: [string, "null"]}
+      sha1: {type: [string, "null"]}
+      source: {type: [string, "null"]}
+      processing_complete: {type: [boolean, "null"]}
+      blocked: {type: [boolean, "null"]}
+      panel: {type: [array, "null"]}
+      date_created: {type: [string, "null"]}
+      date_modified: {type: [string, "null"]}
+      filepath_ia: {type: [string, "null"]}
+      stt_status: {type: [integer, "null"]}
       stt_source: {type: [integer, "null"]}
-      stt_transcript: {type: string}
+      stt_transcript: {type: [string, "null"]}
       ia_upload_failure_count: {type: [integer, "null"]}

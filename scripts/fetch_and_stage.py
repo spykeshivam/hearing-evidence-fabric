@@ -1,9 +1,10 @@
 """Stage SCOTUS (Supreme Court of the United States) hearing evidence for the pipeline.
 
 Loads CL_TOKEN and HE_BUCKET from .env on startup (see load_dotenv_file), falling
-back to whatever is already exported in the shell. For each docket in HEARINGS,
-this script:
-  1. Looks up the docket on CourtListener and resolves its linked oral-argument audio.
+back to whatever is already exported in the shell. For each hearing listed in
+config/hearings.yaml, this script:
+  1. Looks up the docket on CourtListener and resolves its linked oral-argument audio,
+     skipping any docket that links more than one audio file.
   2. Downloads that audio's metadata JSON, then the MP3 itself from CourtListener's storage CDN.
   3. Fetches the matching Oyez case JSON and any transcripts tied to its oral arguments.
   4. Hashes and records provenance (source URL, retrieval time, sha256, licence) for every
@@ -34,6 +35,7 @@ from pathlib import Path
 from hearing_evidence.contracts import load_contract, stage_contracts
 from hearing_evidence.env import load_dotenv_file
 from hearing_evidence.hashing import sha256_of
+from hearing_evidence.hearings import load_hearings
 from hearing_evidence.s3_verify import verify_objects
 
 # "Staging area" is a holding folder where files wait,
@@ -53,12 +55,8 @@ LICENCE = {
     "oyez": load_contract(CONTRACTS / "oyez_transcripts.yaml")["licence"]["id"],
 }
 
-HEARINGS = [
-    {"term": 2024, "docket": "23-970", "audio_id": 95225},  # NVIDIA
-    {"term": 2024, "docket": "23-980", "audio_id": None},  # Facebook
-    {"term": 2022, "docket": "21-1333", "audio_id": None},  # Gonzalez v. Google
-    {"term": 2022, "docket": "21-1496", "audio_id": None},  # Twitter v. Taamneh
-]
+# The hearings to fetch, one {term, docket, name} entry each; see config/hearings.yaml.
+HEARINGS = load_hearings(Path("config/hearings.yaml"))
 
 # The provenance ledger: one entry per fetched file, recording where it came from
 # (url), when it was fetched (retrieved_at), and which source/kind it is. See
@@ -198,8 +196,12 @@ def main():
             # (a list of CourtListener audio-endpoint URLs).
             files = res["results"][0].get("audio_files") or []
             if not files:
-                # TODO: fallback (e.g. h["audio_id"]) not implemented yet
+                # TODO: audio-lookup fallback; check docs/decisions.md, 2026-10-19 for more details
                 print("  no audio linked to this docket, skipping")
+                continue
+            if len(files) > 1:
+                # One hearing per case: check docs/decisions.md, 2026-11-13 for more details.
+                print(f"  {len(files)} audio files linked to this docket, skipping")
                 continue
             audio_ref = files[0]
 

@@ -1,0 +1,21 @@
+# Hearings that scripts/fetch_and_stage.py fetches and stages.
+# term: the October Term the case was argued in (Oyez URLs use it).
+# docket: the Supreme Court docket number, the natural key across sources.
+# Inclusion rule: check docs/decisions.md, 2026-11-13 for more details.
+hearings:
+  - {term: 2024, docket: "23-970", name: "NVIDIA Corp. v. E. Ohman J:or Fonder AB"}
+  - {term: 2024, docket: "23-980", name: "Facebook, Inc. v. Amalgamated Bank"}
+  - {term: 2022, docket: "21-1333", name: "Gonzalez v. Google LLC"}
+  - {term: 2022, docket: "21-1496", name: "Twitter, Inc. v. Taamneh"}
+  - {term: 2010, docket: "10-290", name: "Microsoft Corp. v. i4i Limited Partnership"}
+  - {term: 2010, docket: "08-1448", name: "Brown v. Entertainment Merchants Association"}
+  - {term: 2011, docket: "10-1259", name: "United States v. Jones"}
+  - {term: 2012, docket: "11-1025", name: "Clapper v. Amnesty International USA"}
+  - {term: 2013, docket: "13-298", name: "Alice Corp. v. CLS Bank International"}
+  - {term: 2013, docket: "13-461", name: "ABC, Inc. v. Aereo, Inc."}
+  - {term: 2014, docket: "13-983", name: "Elonis v. United States"}
+  - {term: 2015, docket: "13-1339", name: "Spokeo, Inc. v. Robins"}
+  - {term: 2016, docket: "16-341", name: "TC Heartland LLC v. Kraft Food Brands Group LLC"}
+  - {term: 2016, docket: "15-777", name: "Samsung Electronics Co. v. Apple Inc."}
+  - {term: 2016, docket: "15-1194", name: "Packingham v. North Carolina"}
+  - {term: 2017, docket: "16-402", name: "Carpenter v. United States"}
