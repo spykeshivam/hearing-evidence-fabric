@@ -21,6 +21,14 @@ Template:
 
 ---
 
+## 2026-11-12: Azure OpenAI cross-geo processing enabled for the Fabric data agent
+
+Enabled cross-geo processing and storage for Azure OpenAI so the Fabric data agent works on a
+UK West capacity; prompts and chat history may be processed and stored outside the UK, which is
+acceptable for public data but would need legal sign-off for a firm handling client data.
+
+---
+
 ## 2026-11-11: dim_case assumes one hearing per case
 
 **Decision:** Gold's `dim_case` is built from `slv_hearing`, not a case-level table. Leave
