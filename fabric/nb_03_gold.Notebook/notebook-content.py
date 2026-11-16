@@ -40,16 +40,42 @@
 # - `dbo.gold_evidence_index`: one utterance with text, speaker, side, timestamped audio link and `evidence_hash`
 # - `ops.dq_results`
 # 
+# Every table carries `_run_id`, the id of the notebook run that wrote it; `dq_results` rows carry the same id.
+# 
 # **Gate**: builds only if the latest silver check run has no blocking failure.
 # 
 # **Checks** (error stops the run, warn is logged only)
+# - fact_utterance has rows (error)
 # - every surrogate key is unique (error)
 # - every fact foreign key resolves to its dimension (error)
 # - fact rows equal silver turns, and evidence-index rows equal fact rows (error)
 # - Unknown-speaker share below 5% (warn)
 # - the evidence index's restricted flag matches `dim_case` (error)
 # 
-# **Run**: default lakehouse `lh_silver`, Run all, after a passing silver run.
+# **Run**: default lakehouse `lh_silver`, Run all, after a passing silver run. The first cell sets `RUN_ID`.
+
+# CELL ********************
+
+"""
+run setup.
+
+One RUN_ID per notebook run, set before any table is written, so every gold table and
+every check row from this run carry the same id. Check docs/decisions.md, 2026-11-16
+(run id) for more details.
+"""
+import uuid
+from datetime import datetime, timezone
+
+RUN_ID = str(uuid.uuid4())
+RUN_STARTED_AT = datetime.now(timezone.utc)
+print("run:", RUN_ID)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 
 # CELL ********************
@@ -105,7 +131,8 @@ part = spark.table(f"{SLV}.slv_case_participant")
 # input that row-level security reads: changing a row changes who sees the matter.
 access = spark.createDataFrame([("23-970", True), ("21-1496", True)],
                                "docket string, is_restricted boolean")
-access.write.mode("overwrite").format("delta").saveAsTable(f"{GLD}.ref_matter_access")
+access.withColumn("_run_id", F.lit(RUN_ID)).write.mode("overwrite").option("overwriteSchema", "true") \
+    .format("delta").saveAsTable(f"{GLD}.ref_matter_access")
 
 # dim_case: one row per case (docket). Unlisted matters default to unrestricted.
 dim_case = (hearing.join(access, "docket", "left")
@@ -128,6 +155,7 @@ dim_speaker = (part.select("speaker_id", "speaker_name", "role").dropDuplicates(
                                         # eg. lines up speaker_name with speaker_name
 
 for name, df in [("dim_case", dim_case), ("dim_hearing", dim_hearing), ("dim_speaker", dim_speaker)]:
+    df = df.withColumn("_run_id", F.lit(RUN_ID))   # lineage: which run built it
     df.write.mode("overwrite").option("overwriteSchema", "true").format("delta").saveAsTable(f"{GLD}.{name}")
     print(name, spark.table(f"{GLD}.{name}").count())
 display(spark.table(f"{GLD}.dim_case"))
@@ -182,6 +210,7 @@ gold_evidence_index = (base.drop("speaker_name")
 
 # Overwrite with deterministic keys = idempotent rebuild; MERGE on the keys is the incremental option.
 for name, df in [("fact_utterance", fact_utterance), ("gold_evidence_index", gold_evidence_index)]:
+    df = df.withColumn("_run_id", F.lit(RUN_ID))   # lineage: which run built it
     df.write.mode("overwrite").option("overwriteSchema", "true").format("delta").saveAsTable(f"{GLD}.{name}")
     print(name, spark.table(f"{GLD}.{name}").count())
 display(spark.table(f"{GLD}.gold_evidence_index").limit(10))
@@ -203,16 +232,13 @@ resolves (referential integrity), counts reconcile to silver, and restricted mat
 flagged consistently in the serving table. Results go to the ops schema, which separates
 operational tables from business tables.
 """
-import uuid
-from datetime import datetime, timezone
-
 spark.sql("CREATE SCHEMA IF NOT EXISTS lh_gold.ops")    # operational tables live apart from business data
-run_id, now, results = str(uuid.uuid4()), datetime.now(timezone.utc), []
+results = []
 
 def record(check_id, table, ok, observed, expected, severity="error"):
-    """Append one check result; severity 'error' blocks consumption, 'warn' is logged only."""
+    """Append one check result tagged with RUN_ID; 'error' blocks consumption, 'warn' is logged only."""
     results.append((check_id, "gold", table, "PASS" if ok else "FAIL",
-                    str(observed), str(expected), severity, run_id, now))
+                    str(observed), str(expected), severity, RUN_ID, RUN_STARTED_AT))
 
 g = lambda t: spark.table(f"{GLD}.{t}")
 
@@ -231,11 +257,12 @@ for k, dim in [("speaker_key", "dim_speaker"), ("hearing_key", "dim_hearing"), (
 
 # Reconciliation: gold neither loses nor invents rows relative to silver
 n_slv, n_fact, n_idx = spark.table(f"{SLV}.slv_turn").count(), f.count(), g("gold_evidence_index").count()
+record("fact_nonempty", "fact_utterance", n_fact > 0, n_fact, ">0")   # an empty build must fail, never pass quietly
 record("reconcile_fact_vs_silver", "fact_utterance", n_fact == n_slv, n_fact, n_slv)
 record("reconcile_index_vs_fact", "gold_evidence_index", n_idx == n_fact, n_idx, n_fact)
 
 # Resolution coverage: share of turns attributed to the Unknown speaker
-unk = f.filter("speaker_key = -1").count() / n_fact
+unk = f.filter("speaker_key = -1").count() / n_fact if n_fact else 1.0
 record("unknown_speaker_share", "fact_utterance", unk < 0.05, round(unk, 3), "<0.05", severity="warn")
 
 # Security consistency: the serving table's restricted flag must match the access list

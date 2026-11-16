@@ -21,6 +21,27 @@ Template:
 
 ---
 
+## 2026-11-16: One run id per notebook run, set in a setup cell (issue #37)
+
+**Decision:** `nb_02_silver` and `nb_03_gold` set `RUN_ID` and `RUN_STARTED_AT` in a setup
+cell before any table is written, as `nb_01_bronze_ingest` does. Every table each notebook
+writes carries `_run_id`, and the checks cell tags its `dq_results` rows with the same id.
+Silver stops if the bronze run verified no docket; gold records `fact_nonempty` as a
+blocking check.
+
+**Why:** Silver and gold created their run id inside the checks cell, so the tables written
+earlier in the same run carried no id: a check row could not be tied to the rows it judged,
+and a table row could not be tied to the run that built it. An empty silver or gold build
+passed its checks because no per-docket check ran.
+
+**Alternatives considered:** Deriving the run id from the Fabric session or a pipeline
+parameter; deferred to the rest of #37, where a pipeline run id is passed in.
+
+**Result:** _pending: run silver and gold in Fabric, confirm `_run_id` on every table equals
+the `run_id` on that run's `dq_results` rows._
+
+---
+
 ## 2026-11-16: Silver gates on the bronze run, then on the docket
 
 **Decision:** `nb_02_silver` first requires the latest bronze check run to have no

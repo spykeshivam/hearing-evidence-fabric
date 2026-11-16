@@ -23,7 +23,7 @@ Four Supreme Court hearings: NVIDIA v. Ohman J:or Fonder (23-970, term 2024), Fa
 - Silver (nb_02_silver): promotes only verified hearings; builds speaker turns, hearings (with audio duration measured from the MP3) and case participants with their side, from Oyez reference turns and CourtListener metadata.
 - Gold (nb_03_gold): builds only from a passing silver run. Star schema at turn grain (fact_utterance, dim_case, dim_hearing, dim_speaker) plus gold_evidence_index for search. dim_case is built from slv_hearing and assumes one hearing per case (check docs/decisions.md, 2026-11-11 for more details).
 - Each layer writes its checks to a dq_results table and stops on a blocking failure.
-- Governance and quality: YAML data contracts per source, sha256 and provenance columns, restricted-case row-level security in the semantic model, per-layer data-quality checks that fail on zero rows.
+- Governance and quality: YAML data contracts per source, sha256 and provenance columns, restricted-case row-level security in the semantic model, per-layer data-quality checks; silver and gold stop on an empty build.
 - Fabric items: Spark notebooks, SQL endpoint, Direct Lake semantic model (sm_hearing_evidence), report (rpt_hearing_evidence), Git integration. Skipped on purpose: Warehouse, Purview, Fabric IQ ontology (preview), Dataflows, MLflow.
 - Deliverables: a report tile for speaking time by case, side and speaker.
 - Out of scope / future work: tracked as GitHub issues in the repo, not listed here.
