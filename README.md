@@ -8,9 +8,17 @@ Every speaker turn <!-- TODO: add turn count from gold --> is attributed to a pe
 
 ## Data sources
 
-Seventeen tech-related US Supreme Court oral arguments, drawn from the candidate hearings listed in [`config/hearings.yaml`](config/hearings.yaml).
+Seventeen tech-related US Supreme Court oral arguments, drawn from the 29 candidate hearings listed in [`config/hearings.yaml`](config/hearings.yaml).
 
 Inclusion rule: a case is included when it has exactly one oral argument, not shared with another docket, with one audio file linked on CourtListener.
+
+How the 29 candidates become 17 hearings:
+
+| Stage | Hearings | What happens |
+| --- | --- | --- |
+| Fetch | 29 | `fetch_and_stage.py` stages the CourtListener docket JSON for every candidate. It stages audio metadata, the MP3 and the Oyez files only for dockets with one linked audio file: 17. |
+| Bronze | 29 dockets, 17 with audio | Loads every staged file as received: 29 rows in `brz_docket`, 17 in each audio and Oyez table. |
+| Silver | 17 | Promotes only dockets whose MP3 passes the sha256 check. |
 
 | Source | Provides | Licence |
 | --- | --- | --- |
@@ -57,7 +65,7 @@ Data is staged in S3 to demonstrate reading external storage in place through a 
 
 ### 2. What lands in S3
 
-Five files per hearing, plus one manifest per upload batch:
+Five files per hearing, plus one manifest per upload batch. A candidate with no linked audio lands as its docket JSON only.
 
 | Path | Contents |
 | --- | --- |
