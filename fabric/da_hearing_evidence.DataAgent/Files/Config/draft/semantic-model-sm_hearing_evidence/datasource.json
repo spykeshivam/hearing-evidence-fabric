@@ -1,0 +1,372 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/dataAgent/definition/dataSource/1.0.0/schema.json",
+  "artifactId": "c69ed70c-1dff-9e33-4806-b84b98e6b272",
+  "workspaceId": "00000000-0000-0000-0000-000000000000",
+  "dataSourceInstructions": null,
+  "displayName": "sm_hearing_evidence",
+  "type": "semantic_model",
+  "userDescription": null,
+  "metadata": null,
+  "elements": [
+    {
+      "id": "41feb798-d675-43d7-93d4-9f0010f99033",
+      "is_selected": true,
+      "display_name": "dim_case",
+      "type": "semantic_model.table",
+      "description": null,
+      "children": [
+        {
+          "id": "d956e698-ca28-4148-b02c-c9547a49cde6",
+          "is_selected": true,
+          "display_name": "docket",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "2c25a5d8-9aa4-470d-85e6-da7d0fe958e2",
+          "is_selected": true,
+          "display_name": "case_name",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "377c14f5-dd0f-49e4-a89e-d4f0df5681ac",
+          "is_selected": true,
+          "display_name": "term",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "1414af73-3f0f-425c-adc3-3d66028c10ed",
+          "is_selected": true,
+          "display_name": "first_party",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "3705608a-7f44-4f3b-b45e-c78c0f579bdd",
+          "is_selected": true,
+          "display_name": "second_party",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "86675c71-2b6e-4f25-b385-5e229b566134",
+          "is_selected": true,
+          "display_name": "licence_id",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "7263f13e-84ec-4a09-9563-55c5933765cf",
+          "is_selected": true,
+          "display_name": "is_restricted",
+          "type": "semantic_model.column",
+          "data_type": "Boolean",
+          "description": null,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "96477bdc-7920-48c0-b5d5-0731077f2fee",
+      "is_selected": true,
+      "display_name": "dim_hearing",
+      "type": "semantic_model.table",
+      "description": null,
+      "children": [
+        {
+          "id": "56bfaa4d-49e6-456d-ad1e-fa988e891c4f",
+          "is_selected": true,
+          "display_name": "docket",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "d28e19b6-07e9-4e57-82f8-61bb31e5ac3a",
+          "is_selected": true,
+          "display_name": "mp3_url",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "5d80af8f-bf20-4792-b2dd-ea6d49556de6",
+          "is_selected": true,
+          "display_name": "measured_duration_s",
+          "type": "semantic_model.column",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "91abb382-b7d1-49a4-9b48-79044c792b66",
+          "is_selected": true,
+          "display_name": "reported_duration_s",
+          "type": "semantic_model.column",
+          "data_type": "Int64",
+          "description": null,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "d14f79b4-3066-4763-89a5-67dd6c47597c",
+      "is_selected": true,
+      "display_name": "dim_speaker",
+      "type": "semantic_model.table",
+      "description": null,
+      "children": [
+        {
+          "id": "59739767-c386-4caa-a17f-726685c2eab2",
+          "is_selected": true,
+          "display_name": "speaker_id",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "5e533a5d-10ae-4d09-84c8-8ad42d786119",
+          "is_selected": true,
+          "display_name": "speaker_name",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "9de7990c-3d1e-4d87-997e-28aa4448f3f1",
+          "is_selected": true,
+          "display_name": "role",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "2de02b50-45b2-4ec3-8cc6-652683236b6e",
+      "is_selected": true,
+      "display_name": "fact_utterance",
+      "type": "semantic_model.table",
+      "description": null,
+      "children": [
+        {
+          "id": "aae37a79-9d48-47e9-8a49-0e2c19a47846",
+          "is_selected": true,
+          "display_name": "side",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "c3f7c069-2ce4-4b34-a1a2-77fd606ac3e7",
+          "is_selected": true,
+          "display_name": "is_amicus",
+          "type": "semantic_model.column",
+          "data_type": "Boolean",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "ccbf3c75-9e7a-44b9-a28c-be949ea38c5f",
+          "is_selected": true,
+          "display_name": "start_s",
+          "type": "semantic_model.column",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "f10e262a-82ed-419d-bec2-07ed91b60f14",
+          "is_selected": true,
+          "display_name": "stop_s",
+          "type": "semantic_model.column",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "032ccf79-269f-49a6-b217-53f8cabee453",
+          "is_selected": true,
+          "display_name": "word_count",
+          "type": "semantic_model.column",
+          "data_type": "Int64",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "1e57a439-525d-4339-8697-ae90c854d021",
+          "is_selected": true,
+          "display_name": "Speaking Minutes",
+          "type": "semantic_model.measure",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "576878da-7047-4830-8e25-bd7fe9cb492e",
+          "is_selected": true,
+          "display_name": "Turns",
+          "type": "semantic_model.measure",
+          "data_type": "Int64",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "570da1ae-87ce-4915-a11e-f8beab32acf2",
+          "is_selected": true,
+          "display_name": "Share of Hearing",
+          "type": "semantic_model.measure",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "667d7cf1-e303-4a83-b1d1-3c0ad14ec3cf",
+          "is_selected": true,
+          "display_name": "Words per Minute",
+          "type": "semantic_model.measure",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "bd5613d1-0a38-4c40-84a9-883246a9037e",
+      "is_selected": true,
+      "display_name": "gold_evidence_index",
+      "type": "semantic_model.table",
+      "description": null,
+      "children": [
+        {
+          "id": "82525d26-5776-4cae-91cc-dec91c67f24b",
+          "is_selected": true,
+          "display_name": "utterance_key",
+          "type": "semantic_model.column",
+          "data_type": "Int64",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "a077f193-a5f8-4298-be2d-999ba598d756",
+          "is_selected": true,
+          "display_name": "docket",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "941f1368-e685-4e3b-864a-ff935a4906b5",
+          "is_selected": true,
+          "display_name": "case_name",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "2c970b2e-fe3c-44a6-8847-9a98370d6801",
+          "is_selected": true,
+          "display_name": "speaker_name",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "10a530c7-bb7f-415f-ba3a-4d603b365fdb",
+          "is_selected": true,
+          "display_name": "role",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "c5a50251-d7f4-4ca7-bd28-2026674fe8fa",
+          "is_selected": true,
+          "display_name": "side",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "24bdbd27-2fa3-424f-be44-aee6cf58106e",
+          "is_selected": true,
+          "display_name": "start_s",
+          "type": "semantic_model.column",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "6882ae03-a8c7-4c3d-a3d7-2008aa21780b",
+          "is_selected": true,
+          "display_name": "stop_s",
+          "type": "semantic_model.column",
+          "data_type": "Double",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "9832704b-2308-4ee2-a6d6-ba9758715fd2",
+          "is_selected": true,
+          "display_name": "text",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "bdc2c82d-7e51-4a3f-9b84-84cd02032efe",
+          "is_selected": true,
+          "display_name": "audio_link",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "bfa41a40-e976-4600-8d8c-3603a6d10d7e",
+          "is_selected": true,
+          "display_name": "is_restricted",
+          "type": "semantic_model.column",
+          "data_type": "Boolean",
+          "description": null,
+          "children": []
+        },
+        {
+          "id": "412734e7-fbd5-49a7-aad6-239db1979290",
+          "is_selected": true,
+          "display_name": "evidence_hash",
+          "type": "semantic_model.column",
+          "data_type": "String",
+          "description": null,
+          "children": []
+        }
+      ]
+    }
+  ]
+}

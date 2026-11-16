@@ -54,6 +54,7 @@
 # 
 # **Run**: default lakehouse `lh_bronze`, Run all, after a passing bronze run. The first cell installs `mutagen`, which restarts the Python session; the setup cell after it sets `RUN_ID`.
 
+
 # CELL ********************
 
 # Session setup: install libraries first, because %pip restarts the Python process
@@ -140,23 +141,12 @@ verified = (dq.filter((F.col("run_id") == last_run)
                       & F.col("check_id").startswith("audio_sha256_")
                       & (F.col("status") == "PASS")))
 
-dockets_verified=verified.select(F.regexp_extract("check_id", r"(\d{2}-\d+)", 1).alias("docket"))
+dockets_verified = verified.select(F.regexp_extract("check_id", r"(\d{2}-\d+)", 1).alias("docket")).distinct()
 
 verified_dockets = [r.docket for r in dockets_verified.collect()]
 print("verified dockets:", verified_dockets)
 if not verified_dockets:
     raise AssertionError(f"Silver blocked: bronze run {last_run} verified no hearing")
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-verified.show()
 
 # METADATA ********************
 
@@ -212,7 +202,7 @@ slv_turn = (
 # Overwrite = an idempotent(re-running gives the same result) full rebuild from bronze
 # replaces the whole slv_turn table with what you just built.
 # Fine at this size; at scale, an incremental MERGE on the natural key replaces it.
-slv_turn.write.mode("overwrite").format("delta").saveAsTable(f"{SLV}.slv_turn")
+slv_turn.write.mode("overwrite").option("overwriteSchema", "true").format("delta").saveAsTable(f"{SLV}.slv_turn")
 display(spark.table(f"{SLV}.slv_turn").groupBy("docket").count())
 
 # METADATA ********************
@@ -399,6 +389,11 @@ def record(check_id, table, ok, observed, expected, severity="error"):
     """Append one check result tagged with RUN_ID; 'error' blocks promotion, 'warn' is logged only."""
     results.append((check_id, "silver", table, "PASS" if ok else "FAIL",
                     str(observed), str(expected), severity, RUN_ID, RUN_STARTED_AT))
+
+# Grain (blocking): one row per docket in slv_hearing
+h = spark.table(f"{SLV}.slv_hearing")
+n, d = h.count(), h.select("docket").distinct().count()
+record("pk_unique_slv_hearing", "slv_hearing", n == d, n, d)
 
 # One aggregate row per hearing: compute in Spark, then bring 4 small rows to the driver.
 stats = (spark.table(f"{SLV}.slv_turn").groupBy("docket").agg(
