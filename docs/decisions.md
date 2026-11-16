@@ -37,8 +37,12 @@ passed its checks because no per-docket check ran.
 **Alternatives considered:** Deriving the run id from the Fabric session or a pipeline
 parameter; deferred to the rest of #37, where a pipeline run id is passed in.
 
-**Result:** _pending: run silver and gold in Fabric, confirm `_run_id` on every table equals
-the `run_id` on that run's `dq_results` rows._
+**Result:** The first silver run stopped at the `slv_turn` write: Delta rejected the new
+`_run_id` column on an overwrite without `overwriteSchema`. `slv_turn` now overwrites with
+`overwriteSchema`, as the other silver and gold tables do (#53). On the rerun (2026-11-16),
+`slv_turn` holds one `_run_id` (`c726aa52…`) equal to silver's latest `dq_results` run, and
+`fact_utterance` holds one `_run_id` (`7326ab3a…`) equal to gold's latest `ops.dq_results`
+run (#65).
 
 ---
 
@@ -60,8 +64,8 @@ silver run.
 docket; rejected since checks not tied to a docket would be missed, and the run-level
 check is the one gold already uses.
 
-**Result:** _pending: run bronze, silver and gold in Fabric and confirm silver prints
-the passed-run line and promotes the same dockets as before._
+**Result:** Bronze, silver and gold ran on 2026-11-16 with every check passing; silver
+passed the run-level gate before promoting the verified dockets (#53, #65).
 
 ---
 
