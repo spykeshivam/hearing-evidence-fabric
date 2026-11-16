@@ -40,7 +40,7 @@
 # - `slv_case_participant`: one person per case, with role and side
 # - `dq_results`
 # 
-# **Gate**: promotes only dockets whose MP3 sha256 check passed in the latest bronze run.
+# **Gate**: builds only if the latest bronze check run has no blocking failure, and promotes only dockets whose MP3 sha256 check passed in that run.
 # 
 # **Checks** (error stops the run, warn is logged only)
 # - each hearing has turns, and every turn has stop >= start (error)
@@ -102,7 +102,16 @@ def latest(table):
 dq = spark.table(f"{BRZ}.dq_results")
 last_run = dq.orderBy(F.col("checked_at").desc()).first()["run_id"]
 
-# Blocking check: MP3 sha256 equals the fingerprint recorded at download time (chain of custody).
+# Run-level gate (same shape as gold's): the latest bronze run must have no error-level
+# FAIL on any check, hash or contract. Check docs/decisions.md, 2026-11-16 for more details.
+blocking = (dq.filter((F.col("run_id") == last_run) & (F.col("status") == "FAIL")
+                      & (F.col("severity") == "error"))
+              .select("check_id").collect())
+if blocking:
+    raise AssertionError(f"Silver blocked: bronze run {last_run} failed {[r.check_id for r in blocking]}")
+print(f"Bronze run {last_run} passed its blocking checks.")
+
+# Docket-level gate: MP3 sha256 equals the fingerprint recorded at download time (chain of custody).
 verified = (dq.filter((F.col("run_id") == last_run)
                       & F.col("check_id").startswith("audio_sha256_")
                       & (F.col("status") == "PASS")))

@@ -21,6 +21,29 @@ Template:
 
 ---
 
+## 2026-11-16: Silver gates on the bronze run, then on the docket
+
+**Decision:** `nb_02_silver` first requires the latest bronze check run to have no
+error-level FAIL on any check (hash or contract), raising otherwise, and only then takes
+the dockets whose `audio_sha256_` check passed in that run. Both gates now have the same
+shape: find the latest upstream run, raise on any blocking failure, then take what that
+run vouches for.
+
+**Why:** Bronze writes its hash results before its contract cell runs, and both cells
+share one `run_id`. A bronze run where every hash passed and one payload failed its
+contract stopped bronze but left sha256 PASS rows in `dq_results`; silver read only
+those rows and promoted data bronze had rejected. Gold already gated on the whole
+silver run.
+
+**Alternatives considered:** A docket-level gate that also reads contract failures per
+docket; rejected since checks not tied to a docket would be missed, and the run-level
+check is the one gold already uses.
+
+**Result:** _pending: run bronze, silver and gold in Fabric and confirm silver prints
+the passed-run line and promotes the same dockets as before._
+
+---
+
 ## 2026-11-13: Contracts are strict only for fields silver reads
 
 **Decision:** In `contracts/*.yaml`, fields that silver reads keep a strict type
