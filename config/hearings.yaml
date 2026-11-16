@@ -19,3 +19,16 @@ hearings:
   - {term: 2016, docket: "15-777", name: "Samsung Electronics Co. v. Apple Inc."}
   - {term: 2016, docket: "15-1194", name: "Packingham v. North Carolina"}
   - {term: 2017, docket: "16-402", name: "Carpenter v. United States"}
+  - {term: 2017, docket: "16-712", name: "Oil States Energy Services LLC v. Greene's Energy Group, LLC"}
+  - {term: 2017, docket: "17-2", name: "United States v. Microsoft Corporation"}
+  - {term: 2019, docket: "19-631", name: "Barr v. American Association of Political Consultants Inc."}
+  - {term: 2020, docket: "18-956", name: "Google LLC v. Oracle America Inc."}
+  - {term: 2020, docket: "19-783", name: "Van Buren v. United States"}
+  - {term: 2020, docket: "19-511", name: "Facebook, Inc. v. Duguid"}
+  - {term: 2020, docket: "20-297", name: "TransUnion LLC v. Ramirez"}
+  - {term: 2022, docket: "22-138", name: "Counterman v. Colorado"}
+  - {term: 2023, docket: "22-611", name: "Lindke v. Freed"}
+  - {term: 2023, docket: "22-324", name: "O'Connor-Ratcliff v. Garnier"}
+  - {term: 2023, docket: "23-411", name: "Murthy v. Missouri"}
+  - {term: 2024, docket: "23-1122", name: "Free Speech Coalition, Inc. v. Paxton"}
+  - {term: 2025, docket: "24-171", name: "Cox Communications, Inc. v. Sony Music Entertainment"}
