@@ -86,6 +86,8 @@ Each layer writes its check results to a `dq_results` table and stops on any blo
 
 [`sm_hearing_evidence`](fabric/sm_hearing_evidence.SemanticModel) is a Direct Lake semantic model over gold, with measures (Speaking Minutes, Turns, Words per Minute, Share of Hearing) and a row-level-security role for restricted matters. [`rpt_hearing_evidence`](fabric/rpt_hearing_evidence.Report) shows speaking time by case, side and speaker. The model's tables, relationships, measures and security are documented in [`docs/semantic_model.md`](docs/semantic_model.md).
 
+[`da_hearing_evidence`](fabric/da_hearing_evidence.DataAgent) is a Fabric data agent (preview) that answers natural-language questions over `sm_hearing_evidence`. It uses Azure OpenAI with cross-geo processing (check [`docs/decisions.md`](docs/decisions.md), 2026-11-12). Its instructions and evals are tracked in issue #11.
+
 ## Limitations
 
 - Eleven hearings: findings are indicative only.
