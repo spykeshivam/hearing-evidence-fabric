@@ -40,7 +40,9 @@
 # - `slv_case_participant`: one person per case, with role and side
 # - `dq_results`
 # 
-# **Gate**: builds only if the latest bronze check run has no blocking failure, and promotes only dockets whose MP3 sha256 check passed in that run.
+# Every table carries `_run_id`, the id of the notebook run that wrote it; `dq_results` rows carry the same id.
+# 
+# **Gate**: builds only if the latest bronze check run has no blocking failure, and promotes only dockets whose MP3 sha256 check passed in that run. Stops if no docket is verified.
 # 
 # **Checks** (error stops the run, warn is logged only)
 # - each hearing has turns, and every turn has stop >= start (error)
@@ -50,13 +52,36 @@
 # - at least 95% of turns resolve to a case participant (error)
 # - every advocate has a known side (warn)
 # 
-# **Run**: default lakehouse `lh_bronze`, Run all, after a passing bronze run. The first cell installs `mutagen`, which restarts the Python session.
+# **Run**: default lakehouse `lh_bronze`, Run all, after a passing bronze run. The first cell installs `mutagen`, which restarts the Python session; the setup cell after it sets `RUN_ID`.
 
 # CELL ********************
 
 # Session setup: install libraries first, because %pip restarts the Python process
 # and would wipe any variables defined before it.
 %pip install mutagen -q
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+"""
+run setup.
+
+One RUN_ID per notebook run, set before any table is written, so every silver table and
+every check row from this run carry the same id. Comes after the %pip cell because that
+cell restarts the Python session. Check docs/decisions.md, 2026-11-16 (run id) for more details.
+"""
+import uuid
+from datetime import datetime, timezone
+
+RUN_ID = str(uuid.uuid4())
+RUN_STARTED_AT = datetime.now(timezone.utc)
+print("run:", RUN_ID)
 
 # METADATA ********************
 
@@ -117,7 +142,10 @@ verified = (dq.filter((F.col("run_id") == last_run)
 
 dockets_verified=verified.select(F.regexp_extract("check_id", r"(\d{2}-\d+)", 1).alias("docket"))
 
-print("verified dockets:", [r.docket for r in dockets_verified.collect()])
+verified_dockets = [r.docket for r in dockets_verified.collect()]
+print("verified dockets:", verified_dockets)
+if not verified_dockets:
+    raise AssertionError(f"Silver blocked: bronze run {last_run} verified no hearing")
 
 # METADATA ********************
 
@@ -178,6 +206,7 @@ slv_turn = (
             F.col("sha256").alias("_source_sha256"),                # lineage: exact source bytes
             "_source_file")                                         # lineage: source location
     .withColumn("_processed_at", F.current_timestamp())             # lineage: when silver was built
+    .withColumn("_run_id", F.lit(RUN_ID))                           # lineage: which run built it
 )
 
 # Overwrite = an idempotent(re-running gives the same result) full rebuild from bronze
@@ -258,7 +287,8 @@ oyez_case = (latest("brz_oyez_case").select(
     "licence_id"))                                            # licence travels with the data
 
 slv_hearing = (oyez_case.join(cl_audio, "docket").join(measured, "docket")   # inner joins = gate holds
-               .withColumn("_processed_at", F.current_timestamp()))
+               .withColumn("_processed_at", F.current_timestamp())
+               .withColumn("_run_id", F.lit(RUN_ID)))
 slv_hearing.write.mode("overwrite").option("overwriteSchema", "true") \
     .format("delta").saveAsTable(f"{SLV}.slv_hearing")
 display(spark.table(f"{SLV}.slv_hearing").groupBy("docket").count())
@@ -333,7 +363,8 @@ justices = (cases.select("docket", F.explode("j.heard_by").alias("h"))
 
 slv_case_participant = (advocates.unionByName(justices)
     .dropDuplicates(["docket", "speaker_id"])          # grain guard: one row per person per case
-    .withColumn("_processed_at", F.current_timestamp()))
+    .withColumn("_processed_at", F.current_timestamp())
+    .withColumn("_run_id", F.lit(RUN_ID)))
 slv_case_participant.write.mode("overwrite").option("overwriteSchema", "true") \
     .format("delta").saveAsTable(f"{SLV}.slv_case_participant")
 
@@ -362,15 +393,12 @@ speaker resolves to a known participant of the case. Error-level failures stop t
 (fail loudly), so an invalid silver build is never consumed downstream. Results go to the
 silver check log; each layer keeps its own log.
 """
-import uuid
-from datetime import datetime, timezone
-
-run_id, now, results = str(uuid.uuid4()), datetime.now(timezone.utc), []
+results = []
 
 def record(check_id, table, ok, observed, expected, severity="error"):
-    """Append one check result; severity 'error' blocks promotion, 'warn' is logged only."""
+    """Append one check result tagged with RUN_ID; 'error' blocks promotion, 'warn' is logged only."""
     results.append((check_id, "silver", table, "PASS" if ok else "FAIL",
-                    str(observed), str(expected), severity, run_id, now))
+                    str(observed), str(expected), severity, RUN_ID, RUN_STARTED_AT))
 
 # One aggregate row per hearing: compute in Spark, then bring 4 small rows to the driver.
 stats = (spark.table(f"{SLV}.slv_turn").groupBy("docket").agg(
