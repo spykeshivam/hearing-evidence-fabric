@@ -202,7 +202,7 @@ slv_turn = (
 # Overwrite = an idempotent(re-running gives the same result) full rebuild from bronze
 # replaces the whole slv_turn table with what you just built.
 # Fine at this size; at scale, an incremental MERGE on the natural key replaces it.
-slv_turn.write.mode("overwrite").format("delta").saveAsTable(f"{SLV}.slv_turn")
+slv_turn.write.mode("overwrite").option("overwriteSchema", "true").format("delta").saveAsTable(f"{SLV}.slv_turn")
 display(spark.table(f"{SLV}.slv_turn").groupBy("docket").count())
 
 # METADATA ********************
