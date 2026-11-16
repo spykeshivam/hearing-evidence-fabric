@@ -349,12 +349,13 @@ for r in man.filter("kind = 'audio'").collect():
 
 schema = "check_id string, layer string, table_name string, status string, " \
          "observed string, expected string, severity string, run_id string, checked_at timestamp"
+out = spark.createDataFrame(results, schema)          # build the results table
+# Write every result, PASS included: silver's docket gate reads the audio_sha256_ PASS rows.
+out.write.mode("append").option("mergeSchema", "true").format("delta").saveAsTable("dbo.dq_results")
 
 n_fail = sum(r[3] == "FAIL" for r in results)
-print(f"{len(results)} contract checks, {n_fail} failed")
+print(f"{len(results)} hash checks, {n_fail} failed")
 if n_fail:
-    out = spark.createDataFrame(results, schema)          # build the results table
-    out.write.mode("append").option("mergeSchema", "true").format("delta").saveAsTable("dbo.dq_results")
     out.filter("status = 'FAIL'").select("check_id", "status", "severity", "observed", "expected").show(truncate=False)
 
 # Fail loudly on blocking checks only

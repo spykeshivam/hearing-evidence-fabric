@@ -292,16 +292,6 @@ display(spark.table(f"{SLV}.slv_hearing").groupBy("docket").count())
 
 # CELL ********************
 
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
 df = spark.table(f"{SLV}.slv_hearing")
 print(f"=== {SLV}.slv_hearing: {df.count()} rows | grain/columns: {df.columns}")
 # Lineage columns are hidden in the preview; they stay in the table
@@ -404,7 +394,6 @@ def record(check_id, table, ok, observed, expected, severity="error"):
 h = spark.table(f"{SLV}.slv_hearing")
 n, d = h.count(), h.select("docket").distinct().count()
 record("pk_unique_slv_hearing", "slv_hearing", n == d, n, d)
-
 
 # One aggregate row per hearing: compute in Spark, then bring 4 small rows to the driver.
 stats = (spark.table(f"{SLV}.slv_turn").groupBy("docket").agg(
