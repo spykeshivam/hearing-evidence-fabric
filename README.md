@@ -4,13 +4,13 @@
 
 A governed data product that turns court oral-argument recordings and transcripts into searchable, attributable evidence for litigation teams preparing for hearings. It answers questions like "what did counsel say about Section 230, and at what second of the recording?" and "how much of the hearing did the bench take?".
 
-Every one of 1,971 speaker turns is attributed to a person and to the side they argued for, links to that moment in the audio, and reconciles from the source files to the Power BI totals.
+Every speaker turn <!-- TODO: add turn count from gold --> is attributed to a person and to the side they argued for, links to that moment in the audio, and reconciles from the source files to the Power BI totals.
 
 ## Data sources
 
-Seventeen tech-related US Supreme Court oral arguments: 23-970 NVIDIA, 23-980 Facebook, 21-1333 Gonzalez v. Google, 21-1496 Twitter v. Taamneh, 10-290 Microsoft v. i4i, 08-1448 Brown v. Entertainment Merchants, 10-1259 United States v. Jones, 11-1025 Clapper v. Amnesty International, 16-341 TC Heartland v. Kraft, 15-777 Samsung v. Apple, 15-1194 Packingham v. North Carolina, 22-138 Counterman v. Colorado, 22-611 Lindke v. Freed, 22-324 O'Connor-Ratcliff v. Garnier, 23-411 Murthy v. Missouri, 23-1122 Free Speech Coalition v. Paxton, 24-171 Cox Communications v. Sony Music.
+Seventeen tech-related US Supreme Court oral arguments, drawn from the candidate hearings listed in [`config/hearings.yaml`](config/hearings.yaml).
 
-Inclusion rule: a case is included when it has exactly one oral argument, not shared with another docket, with one audio file linked on CourtListener. The hearing list lives in [`config/hearings.yaml`](config/hearings.yaml).
+Inclusion rule: a case is included when it has exactly one oral argument, not shared with another docket, with one audio file linked on CourtListener.
 
 | Source | Provides | Licence |
 | --- | --- | --- |
@@ -82,11 +82,13 @@ Create a workspace on a Fabric capacity, three lakehouses with schemas enabled (
 
 Each layer writes its check results to a `dq_results` table and stops on any blocking failure.
 
-### 4. Power BI
+### 4. Power BI and data agent
 
-[`sm_hearing_evidence`](fabric/sm_hearing_evidence.SemanticModel) is a Direct Lake semantic model over gold, with measures (Speaking Minutes, Turns, Words per Minute, Share of Hearing) and a row-level-security role for restricted matters. [`rpt_hearing_evidence`](fabric/rpt_hearing_evidence.Report) shows speaking time by case, side and speaker. The model's tables, relationships, measures and security are documented in [`docs/semantic_model.md`](docs/semantic_model.md).
+[`sm_hearing_evidence`](fabric/sm_hearing_evidence.SemanticModel) is a Direct Lake semantic model over gold, with measures (Speaking Minutes, Turns, Words per Minute, Share of Hearing) and a row-level-security role for restricted matters. [`rpt_hearing_evidence`](fabric/rpt_hearing_evidence.Report) shows speaking time by case, side and speaker.
 
-[`da_hearing_evidence`](fabric/da_hearing_evidence.DataAgent) is a Fabric data agent (preview) that answers natural-language questions over `sm_hearing_evidence`. It uses Azure OpenAI with cross-geo processing (check [`docs/decisions.md`](docs/decisions.md), 2026-11-12). Its instructions and evals are tracked in issue #11.
+[`docs/semantic_model.md`](docs/semantic_model.md) documents the model's relationships, measures and the row-level-security role (`GeneralCounsel`).
+
+[`da_hearing_evidence`](fabric/da_hearing_evidence.DataAgent) is a Fabric data agent (preview) over the semantic model that answers questions about speaking time, turns and speakers in natural language. It uses Azure OpenAI with cross-geo processing (check [`docs/decisions.md`](docs/decisions.md), 2026-11-12). Its instructions and evals are tracked in issue #11.
 
 ## Limitations
 
@@ -94,4 +96,4 @@ Each layer writes its check results to a `dq_results` table and stops on any blo
 - Public data; the restricted matters are simulated.
 - Outputs are research artefacts, not evidence. Oyez data is non-commercial.
 
-Design choices and their reasons are logged in [`docs/decisions.md`](docs/decisions.md).
+Design choices and their reasons are logged in [`docs/decisions.md`](docs/decisions.md); the semantic model is documented in [`docs/semantic_model.md`](docs/semantic_model.md).
