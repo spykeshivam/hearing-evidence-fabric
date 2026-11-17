@@ -1,0 +1,68 @@
+# Evaluation questions for the data agent da_hearing_evidence.
+# ground_truth holds the expected answer from queries against sm_hearing_evidence.
+# ground_truth_dax holds the DAX query that produces ground_truth.
+questions:
+  - id: Q1
+    version: 1
+    text: "Which case has the most speaker turns?"
+    expected_behaviour: answer
+    ground_truth_dax: EVALUATE TOPN ( 1, SUMMARIZECOLUMNS ( dim_case[case_name], "Turns", [Turns] ), [Turns], DESC )
+    ground_truth:
+      - {case: "Twitter, Inc. v. Taamneh", turns: 638}
+      - {case: "Free Speech Coalition, Inc. v. Paxton", turns: 638}
+    notes: "The two cases tie, so naming only one is a partial answer."
+
+  - id: Q2
+    version: 1
+    text: "How many minutes did the bench speak in total across all cases?"
+    expected_behaviour: answer
+    ground_truth_dax: EVALUATE ROW ( "Bench minutes", CALCULATE ( [Speaking Minutes], fact_utterance[side] = "bench" ) )
+    ground_truth: {minutes: 644.862}
+    notes: "Total across all hearings, not an average."
+
+  - id: Q3
+    version: 1
+    text: "Which three justices spoke the most, and for how many minutes?"
+    expected_behaviour: answer
+    ground_truth_dax: EVALUATE TOPN ( 3, SUMMARIZECOLUMNS ( dim_speaker[speaker_name], TREATAS ( { "justice" }, dim_speaker[role] ), "Minutes", [Speaking Minutes] ), [Minutes], DESC )
+    ground_truth:
+      - {speaker: "Sonia Sotomayor", minutes: 90.70}
+      - {speaker: "Ketanji Brown Jackson", minutes: 88.73}
+      - {speaker: "Elena Kagan", minutes: 77.19}
+    notes: "Ranked by total speaking minutes across all hearings."
+
+  - id: Q4
+    version: 1
+    text: "Which advocates argued for more than one side, and how many sides?"
+    expected_behaviour: answer
+    ground_truth_dax: EVALUATE FILTER ( SUMMARIZECOLUMNS ( dim_speaker[speaker_name], TREATAS ( { "advocate" }, dim_speaker[role] ), "Sides", DISTINCTCOUNT ( fact_utterance[side] ) ), [Sides] > 1 )
+    ground_truth:
+      - {speaker: "Malcolm L. Stewart", sides: 3}
+      - {speaker: "Brian H. Fletcher", sides: 2}
+      - {speaker: "Eric Schnapper", sides: 2}
+      - {speaker: "Seth P. Waxman", sides: 2}
+    notes: >-
+      A side is petitioner, respondent or amicus_other. An amicus is counted on the
+      party they support; an amicus supporting neither party is amicus_other.
+      Stewart's 3 is legitimate (checked against the raw Oyez role description in
+      slv_case_participant).
+
+  - id: Q5
+    version: 1
+    text: "What is the average words per minute for justices compared with advocates?"
+    expected_behaviour: answer
+    ground_truth_dax: EVALUATE SUMMARIZECOLUMNS ( dim_speaker[role], "WPM", [Words per Minute] )
+    ground_truth:
+      - {role: "justice", wpm: 164.39}
+      - {role: "advocate", wpm: 183.50}
+    notes: "One average per role."
+
+  - id: Q6
+    version: 1
+    text: "Why did the Court rule the way it did in Gonzalez v. Google?"
+    expected_behaviour: refuse
+    ground_truth_dax: "n/a"
+    ground_truth: null
+    notes: >-
+      The data holds speaking time and turns, not outcomes or reasoning; a correct
+      answer is a refusal.
