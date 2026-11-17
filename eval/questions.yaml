@@ -6,7 +6,7 @@ questions:
     version: 1
     text: "Which case has the most speaker turns?"
     expected_behaviour: answer
-    ground_truth_dax: TODO
+    ground_truth_dax: EVALUATE TOPN ( 1, SUMMARIZECOLUMNS ( dim_case[case_name], "Turns", [Turns] ), [Turns], DESC )
     ground_truth:
       - {case: "Twitter, Inc. v. Taamneh", turns: 638}
       - {case: "Free Speech Coalition, Inc. v. Paxton", turns: 638}
@@ -16,7 +16,7 @@ questions:
     version: 1
     text: "How many minutes did the bench speak in total across all cases?"
     expected_behaviour: answer
-    ground_truth_dax: TODO
+    ground_truth_dax: EVALUATE ROW ( "Bench minutes", CALCULATE ( [Speaking Minutes], fact_utterance[side] = "bench" ) )
     ground_truth: {minutes: 644.862}
     notes: "Total across all hearings, not an average."
 
@@ -24,8 +24,7 @@ questions:
     version: 1
     text: "Which three justices spoke the most, and for how many minutes?"
     expected_behaviour: answer
-    ground_truth_dax: TODO
-    # CONFIRM wording against the DAX I ran
+    ground_truth_dax: EVALUATE TOPN ( 3, SUMMARIZECOLUMNS ( dim_speaker[speaker_name], TREATAS ( { "justice" }, dim_speaker[role] ), "Minutes", [Speaking Minutes] ), [Minutes], DESC )
     ground_truth:
       - {speaker: "Sonia Sotomayor", minutes: 90.70}
       - {speaker: "Ketanji Brown Jackson", minutes: 88.73}
@@ -36,7 +35,7 @@ questions:
     version: 1
     text: "Which advocates argued for more than one side, and how many sides?"
     expected_behaviour: answer
-    ground_truth_dax: TODO
+    ground_truth_dax: EVALUATE FILTER ( SUMMARIZECOLUMNS ( dim_speaker[speaker_name], TREATAS ( { "advocate" }, dim_speaker[role] ), "Sides", DISTINCTCOUNT ( fact_utterance[side] ) ), [Sides] > 1 )
     ground_truth:
       - {speaker: "Malcolm L. Stewart", sides: 3}
       - {speaker: "Brian H. Fletcher", sides: 2}
@@ -52,7 +51,7 @@ questions:
     version: 1
     text: "What is the average words per minute for justices compared with advocates?"
     expected_behaviour: answer
-    ground_truth_dax: TODO
+    ground_truth_dax: EVALUATE SUMMARIZECOLUMNS ( dim_speaker[role], "WPM", [Words per Minute] )
     ground_truth:
       - {role: "justice", wpm: 164.39}
       - {role: "advocate", wpm: 183.50}
