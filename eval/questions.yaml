@@ -61,7 +61,7 @@ questions:
     version: 1
     text: "Why did the Court rule the way it did in Gonzalez v. Google?"
     expected_behaviour: refuse
-    ground_truth_dax: TODO
+    ground_truth_dax: "n/a"
     ground_truth: null
     notes: >-
       The data holds speaking time and turns, not outcomes or reasoning; a correct
